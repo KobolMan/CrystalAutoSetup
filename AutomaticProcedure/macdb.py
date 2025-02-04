@@ -160,3 +160,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+##Note: 04/02/2025 This script deals with the MAC address database and the board information file. 
+# It reads the serial number from the board information file, gets an available MAC address from the database, marks it as used, and updates the board information file with the MAC address.
+# It also creates a branch, a pull request, and merges it to update the MAC address database. The script is designed to be run as part of an automated procedure for assigning MAC addresses to devices.

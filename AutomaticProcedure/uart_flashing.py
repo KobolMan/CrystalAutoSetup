@@ -102,3 +102,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+##Note: 04/02/2025 This script is used to test the UART connection to a device running U-Boot.
+# It sends commands to read the MAC address from the device and enters an interactive mode where the user can send custom commands. The script can be interrupted by pressing Ctrl+C.
