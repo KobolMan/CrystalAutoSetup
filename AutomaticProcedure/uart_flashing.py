@@ -3,24 +3,21 @@ import serial
 import time
 import logging
 import sys
-import threading
+from macdb import MACDatabase
 
-class UARTTest:
+class UARTFlasher:
     def __init__(self, port="/dev/ttyAMA0", baudrate=115200):
         self.uart = None
         self.port = port
         self.baudrate = baudrate
-        self.running = True
+        self.mac_db = MACDatabase()
+        
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
 
     def setup_uart(self):
         try:
-            self.uart = serial.Serial(
-                port=self.port,
-                baudrate=self.baudrate,
-                timeout=1
-            )
+            self.uart = serial.Serial(port=self.port, baudrate=self.baudrate, timeout=1)
             self.logger.info(f"UART opened on {self.port}")
             return True
         except Exception as e:
@@ -58,24 +55,27 @@ class UARTTest:
             self.logger.info(f"Command: {command}\nResponse: {response}")
         return response
 
-    def read_mac_address(self):
-        self.logger.info("Reading MAC address...")
-        high_bits = self.send_command("fuse read 4 3")
-        low_bits = self.send_command("fuse read 4 2")
-        return high_bits, low_bits
+    def write_mac_address(self, mac_addr):
+       """Temporarily just reads MAC via fuses instead of writing"""
+       self.logger.info(f"Would flash MAC: {mac_addr}")
+       high_bits = self.send_command("fuse read 4 3")
+       low_bits = self.send_command("fuse read 4 2")
+       self.logger.info(f"Current MAC high bits: {high_bits}")
+       self.logger.info(f"Current MAC low bits: {low_bits}")
+       return True  # Simulating success for testing
 
-    def interactive_mode(self):
-        print("\nEntering interactive mode. Type commands or 'exit' to quit.")
-        while self.running:
-            try:
-                command = input("U-Boot> ")
-                if command.lower() == 'exit':
-                    self.running = False
-                    break
-                self.send_command(command)
-            except KeyboardInterrupt:
-                self.running = False
-                break
+    def prepare_mac_flash(self):
+        serial = self.mac_db.read_serial_number()
+        if not serial:
+            self.logger.error("Failed to read serial number")
+            return None
+            
+        mac = self.mac_db.get_available_mac()
+        if mac:
+            self.logger.info(f"Found available MAC: {mac}")
+            self.logger.info("I CAN FLASH THE MAC")
+            return mac
+        return None
 
     def cleanup(self):
         if self.uart and self.uart.is_open:
@@ -83,17 +83,19 @@ class UARTTest:
             self.logger.info("UART closed")
 
 def main():
-    uart = UARTTest()
+    uart = UARTFlasher()
     try:
         if not uart.setup_uart():
             sys.exit(1)
 
-        if uart.wait_for_boot_prompt():
+        mac_addr = uart.prepare_mac_flash()
+        if mac_addr and uart.wait_for_boot_prompt():
             uart.logger.info("Successfully entered U-Boot")
-            high_bits, low_bits = uart.read_mac_address()
-            uart.interactive_mode()
+            if uart.write_mac_address(mac_addr):
+                serial = uart.mac_db.read_serial_number()
+                uart.mac_db.mark_mac_as_used(mac_addr, serial)
         else:
-            uart.logger.error("Failed to enter U-Boot")
+            uart.logger.error("Failed to prepare for flashing")
             
     except KeyboardInterrupt:
         uart.logger.info("Test interrupted")
@@ -102,6 +104,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-##Note: 04/02/2025 This script is used to test the UART connection to a device running U-Boot.
-# It sends commands to read the MAC address from the device and enters an interactive mode where the user can send custom commands. The script can be interrupted by pressing Ctrl+C.
