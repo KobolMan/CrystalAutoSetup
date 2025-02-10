@@ -161,6 +161,33 @@ graph TB
 - Programs MAC addresses into hardware
 - Configures U-Boot environment
 
+
+## Process Flow
+
+1. **Initialization Phase**
+   - Load configurations
+   - Verify hardware connections
+   - Check file availability
+
+2. **Network Setup**
+   - Configure master network
+   - Initialize UART connection
+   - Setup target network
+     
+3. **OS Installation**
+   - Transfer image files
+   - Program eMMC
+   - Configure system settings
+   - Validate OS installation
+     
+4. **MAC Address Management**
+   - Read board serial number
+   - Check MAC availability
+   - Create GitHub pull request
+   - Program MAC to hardware
+
+5. **Provisioning PENDING**
+
 ## Prerequisites
 
 ### Hardware Requirements
@@ -233,6 +260,7 @@ EOL
 ```
 
 ## Usage
+Note: The final version will be completely automated and the whole system will start the setup procedure simply by pressing an external push-button.
 
 ### Basic Usage
 ```bash
@@ -249,33 +277,6 @@ python autosetup.py \
   --verbose
 ```
 
-## Process Flow
-
-1. **Initialization Phase**
-   - Load configurations
-   - Verify hardware connections
-   - Check file availability
-
-2. **Network Setup**
-   - Configure master network
-   - Initialize UART connection
-   - Setup target network
-
-3. **MAC Address Management**
-   - Read board serial number
-   - Check MAC availability
-   - Create GitHub pull request
-   - Program MAC to hardware
-
-4. **OS Installation**
-   - Transfer image files
-   - Program eMMC
-   - Configure system settings
-
-5. **Verification**
-   - Test network connectivity
-   - Verify MAC assignment
-   - Validate OS installation
 
 ## Error Handling
 
