@@ -1,6 +1,6 @@
 # Automatic Setup for Crystal Gateway
 
-A comprehensive automation system designed for the industrialized initialization and configuration of Crystal gateway boards using a Raspberry Pi 5 as the master controller, integrated with a custom mechanical fixture and automated connection system. This automated production line approach combines software automation with mechanical precision to ensure reliable and repeatable board programming.
+An automatic Flashing and provisioning tool for Crystal Board Gateway rev 3.
 
 ## Project Current Status
 
@@ -92,11 +92,6 @@ graph TB
 ```
 
 
-### Hardware Implementation
-
-<img src="AutomaticProcedure/VitroFixture.png" alt="Hardware Setup Diagram" />
-
-*Figure: Physical setup showing the complete fixture design with RPi 5 (Master) inside the fixture case connected to Crystal Board (Target) via UART, Ethernet and SD adapter. Note: The connections will be enstablished thanks to the linear cart.*
 
 
 ## System Components
@@ -105,7 +100,7 @@ graph TB
 - Orchestrates the entire setup process
 - Manages network configuration for both devices
 - Handles file transfers and OS installation
-- Coordinates between MAC database and UART operations
+- Coordinates MAC selection (via MAC db manager) and fusing (via UART Communication Manager)
 
 ### 2. MAC Database Manager
 - Manages MAC address allocation
@@ -123,33 +118,31 @@ graph TB
 ## Process Flow
 
 1. **Initialization Phase**
-   - Load configurations
    - Verify hardware connections
-   - Check file availability
+   - Check OS image availability
 
 2. **Network Setup**
    - Configure master network
    - Initialize UART connection
-   - Setup target network
+   - Setup target (Crystal Board) network
      
 3. **OS Installation**
-   - Transfer image files
-   - Program eMMC
-   - Configure system settings
+   - Transfer OS image files if not available
+   - Flash eMMC
    - Validate OS installation
      
 4. **MAC Address Management**
-   - Read board serial number
-   - Check MAC availability
-   - Create GitHub pull request
-   - Program MAC to hardware
+   - Read board ICC ID
+   - Available MAC allocation
+   - Fuse MAC addr to target board
+   - MAC db synchronization
 
 5. **Provisioning PENDING**
 
 ## Prerequisites
 
 ### Hardware Requirements
-- Raspberry Pi 5 (Master Controller)
+- Raspberry Pi 5 (Master Controller) or similar running 
 - Crystal Board (Target Device)
 - Physical Connections:
   - UART Connection (3.3V TTL)
@@ -290,20 +283,8 @@ git clone git@github.com-mac-db:org/mac-db.git
 cat mac-db/db.csv
 ```
 
-## Contributing
+### Hardware Implementation
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+<img src="AutomaticProcedure/VitroFixture.png" alt="Hardware Setup Diagram" />
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- NXP i.MX6 Development Team
-- Raspberry Pi Foundation
-- GitHub API Contributors
+*Figure: Physical setup showing the complete fixture design with RPi 5 (Master) inside the fixture case connected to Crystal Board (Target) via UART, Ethernet and SD adapter. Note: The connections will be enstablished thanks to the linear cart.*
