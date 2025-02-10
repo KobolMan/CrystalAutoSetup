@@ -28,71 +28,9 @@ Current software implementation status of key features, 10/02 (95%):
 
 ## System Architecture
 
-```mermaid
-graph LR
-   subgraph Auto[AutoSetup Controller]
-       MC[Coordinator] --> NS[Local Network]
-       MC --> OS[OS Install]
-   end
+<img src="AutomaticProcedure/flashing_fixture.png" alt="System Architecture" />
 
-   subgraph UART[UART Manager]
-       SC[Serial] --> BT[eMMC Boot Fuse]
-       SC --> MP[MAC assign]
-       SC --> PV[Provisioning]
-   end
-
-   subgraph MAC[MAC DB Manager]
-       GH[GitHub] --> MA[Get Available MAC]
-       MA --> DB[Update DB]
-   end
-
-   MC --> UART
-   MC --> MAC
-   
-   %% Force vertical alignment
-   UART ~~~ MAC
-
-   classDef main fill:#ffebf7,stroke:#333,stroke-width:2px,color:#000
-   classDef uart fill:#f0fff0,stroke:#333,stroke-width:2px,color:#000
-   classDef mac fill:#f0f0ff,stroke:#333,stroke-width:2px,color:#000
-
-   class MC,NS,OS main
-   class SC,BT,MP,PV uart
-   class GH,MA,DB mac
-```
-
-## Hardware Overview
-
-```mermaid
-graph TB
-   subgraph Master[Master RPi5]
-       NC[Network]
-       UI[UART]
-       FS[Storage]
-       
-       UI --> BC[Boot]
-   end
-
-   subgraph Target[Crystal Board]
-       TNI[Network] --> TU[UART]
-       TU --> UB[U-Boot]
-       UB --> ES[eMMC]
-   end
-
-   NC -->|Ethernet| TNI
-   UI -->|Serial| TU
-   FS -->|OS Image| ES
-
-   classDef master fill:#ff9966,stroke:#333,stroke-width:2px,color:#000
-   classDef target fill:#6699ff,stroke:#333,stroke-width:2px,color:#000
-
-   class NC,UI,FS,BC master
-   class TNI,TU,UB,ES target
-
-```
-
-
-
+*Figure: System architecture map explaining the setup procedure *
 
 ## System Components
 
