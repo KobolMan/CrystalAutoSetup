@@ -30,106 +30,64 @@ Current software implementation status of key features, 10/02 (95%):
 
 ```mermaid
 graph LR
-    %% AutoSetup Controller
-    subgraph AC[AutoSetup Controller]
-        direction TB
-        Main[Main Coordinator] --> NS[Network Setup]
-        Main --> FT[File Transfer]
-        Main --> OS[OS Installation]
-        Main --> CO[Component Orchestration]
-        
-        style Main fill:#ffd6eb,stroke:#333,stroke-width:2px,color:#000
-        style NS fill:#ffd6eb,stroke:#333,stroke-width:2px,color:#000
-        style FT fill:#ffd6eb,stroke:#333,stroke-width:2px,color:#000
-        style OS fill:#ffd6eb,stroke:#333,stroke-width:2px,color:#000
-        style CO fill:#ffd6eb,stroke:#333,stroke-width:2px,color:#000
-    end
+   subgraph Auto[AutoSetup Controller]
+       MC[Coordinator] --> NS[Local Network]
+       MC --> OS[OS Install]
+   end
 
-    %% MAC Database Manager
-    subgraph DB[MAC Database Manager]
-        direction TB
-        GH[GitHub Integration] --> MA[MAC Assignment]
-        MA --> DU[Database Updates]
-        DU --> PR[Pull Request Management]
-        
-        style GH fill:#e6e6ff,stroke:#333,stroke-width:2px,color:#000
-        style MA fill:#e6e6ff,stroke:#333,stroke-width:2px,color:#000
-        style DU fill:#e6e6ff,stroke:#333,stroke-width:2px,color:#000
-        style PR fill:#e6e6ff,stroke:#333,stroke-width:2px,color:#000
-    end
+   subgraph UART[UART Manager]
+       SC[Serial] --> BT[eMMC Boot Fuse]
+       SC --> MP[MAC assign]
+       SC --> PV[Provisioning]
+   end
 
-    %% UART Communication
-    subgraph UC[UART Communication]
-        direction TB
-        SC[Serial Communication] --> BM[Boot Management]
-        BM --> MP[MAC Programming]
-        MP --> ES[Environment Setup]
-        
-        style SC fill:#e6ffe6,stroke:#333,stroke-width:2px,color:#000
-        style BM fill:#e6ffe6,stroke:#333,stroke-width:2px,color:#000
-        style MP fill:#e6ffe6,stroke:#333,stroke-width:2px,color:#000
-        style ES fill:#e6ffe6,stroke:#333,stroke-width:2px,color:#000
-    end
+   subgraph MAC[MAC DB Manager]
+       GH[GitHub] --> MA[Get Available MAC]
+       MA --> DB[Update DB]
+   end
 
-    %% Connections between subgraphs
-    Main --> DB
-    Main --> UC
+   MC --> UART
+   MC --> MAC
+   
+   %% Force vertical alignment
+   UART ~~~ MAC
 
-    %% Force vertical alignment of right subgraphs
-    DB --- UC
-    
-    %% Style subgraph titles
-    style AC fill:#444,stroke:#333,stroke-width:2px,color:white
-    style DB fill:#444,stroke:#333,stroke-width:2px,color:white
-    style UC fill:#444,stroke:#333,stroke-width:2px,color:white
+   classDef main fill:#ffebf7,stroke:#333,stroke-width:2px,color:#000
+   classDef uart fill:#f0fff0,stroke:#333,stroke-width:2px,color:#000
+   classDef mac fill:#f0f0ff,stroke:#333,stroke-width:2px,color:#000
+
+   class MC,NS,OS main
+   class SC,BT,MP,PV uart
+   class GH,MA,DB mac
 ```
 
 ## Hardware Overview
 
 ```mermaid
 graph TB
-    subgraph master["MASTER CONTROLLER(RPi5)"]
-        subgraph Network["Network Management"]
-            M1[Network Controller]
-        end
-        subgraph Communication["Communication"]
-            M2[UART Interface]
-            M4[Boot Control]
-        end
-        subgraph Storage["Storage"]
-            M3[File System]
-        end
-        M1 --> M2
-        M1 --> M3
-        M2 --> M4
-    end
+   subgraph Master[Master RPi5]
+       NC[Network]
+       UI[UART]
+       FS[Storage]
+       
+       UI --> BC[Boot]
+   end
 
-    subgraph target["TARGET BOARD(Crystal)"]
-        subgraph InterfaceGroup["Network & UART"]
-            T1[Network Interface]
-            T2[UART]
-        end
-        subgraph Boot["Boot System"]
-            T3[U-Boot]
-            T4[eMMC Storage]
-        end
-        T1 --> T2
-        T2 --> T3
-        T3 --> T4
-    end
+   subgraph Target[Crystal Board]
+       TNI[Network] --> TU[UART]
+       TU --> UB[U-Boot]
+       UB --> ES[eMMC]
+   end
 
-    M1 -->|Ethernet| T1
-    M2 -->|Serial| T2
-    M3 -->|OS Image| T4
+   NC -->|Ethernet| TNI
+   UI -->|Serial| TU
+   FS -->|OS Image| ES
 
-    classDef master fill:#ff9966,stroke:#333,stroke-width:3px,color:#000
-    classDef target fill:#6699ff,stroke:#333,stroke-width:3px,color:#000
-    classDef subgroup fill:none,stroke:#666,stroke-width:2px,stroke-dasharray:5 5,color:#000
-    classDef default color:#000
+   classDef master fill:#ff9966,stroke:#333,stroke-width:2px,color:#000
+   classDef target fill:#6699ff,stroke:#333,stroke-width:2px,color:#000
 
-    class M1,M2,M3,M4 master
-    class T1,T2,T3,T4 target
-    class Network,Communication,Storage,InterfaceGroup,Boot subgroup
+   class NC,UI,FS,BC master
+   class TNI,TU,UB,ES target
 
 ```
 
