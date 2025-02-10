@@ -4,7 +4,7 @@ Complete automation system for initializing and configuring Crystal boards using
 
 ## Project Status
 
-Current implementation status of key features:
+Current software implementation status of key features, 10/02 (95%):
 
 - ✅ Board OS Installation
   - Complete OS image transfer and installation
@@ -26,73 +26,120 @@ Current implementation status of key features:
   - Requirements analysis in progress
   - Integration planning phase
 
+## System Architecture
+
+```mermaid
+graph LR
+    %% AutoSetup Controller
+    subgraph AC[AutoSetup Controller]
+        direction TB
+        Main[Main Coordinator] --> NS[Network Setup]
+        Main --> FT[File Transfer]
+        Main --> OS[OS Installation]
+        Main --> CO[Component Orchestration]
+        
+        style Main fill:#ffd6eb,stroke:#333,stroke-width:2px,color:#000
+        style NS fill:#ffd6eb,stroke:#333,stroke-width:2px,color:#000
+        style FT fill:#ffd6eb,stroke:#333,stroke-width:2px,color:#000
+        style OS fill:#ffd6eb,stroke:#333,stroke-width:2px,color:#000
+        style CO fill:#ffd6eb,stroke:#333,stroke-width:2px,color:#000
+    end
+
+    %% MAC Database Manager
+    subgraph DB[MAC Database Manager]
+        direction TB
+        GH[GitHub Integration] --> MA[MAC Assignment]
+        MA --> DU[Database Updates]
+        DU --> PR[Pull Request Management]
+        
+        style GH fill:#e6e6ff,stroke:#333,stroke-width:2px,color:#000
+        style MA fill:#e6e6ff,stroke:#333,stroke-width:2px,color:#000
+        style DU fill:#e6e6ff,stroke:#333,stroke-width:2px,color:#000
+        style PR fill:#e6e6ff,stroke:#333,stroke-width:2px,color:#000
+    end
+
+    %% UART Communication
+    subgraph UC[UART Communication]
+        direction TB
+        SC[Serial Communication] --> BM[Boot Management]
+        BM --> MP[MAC Programming]
+        MP --> ES[Environment Setup]
+        
+        style SC fill:#e6ffe6,stroke:#333,stroke-width:2px,color:#000
+        style BM fill:#e6ffe6,stroke:#333,stroke-width:2px,color:#000
+        style MP fill:#e6ffe6,stroke:#333,stroke-width:2px,color:#000
+        style ES fill:#e6ffe6,stroke:#333,stroke-width:2px,color:#000
+    end
+
+    %% Connections between subgraphs
+    Main --> DB
+    Main --> UC
+
+    %% Force vertical alignment of right subgraphs
+    DB --- UC
+    
+    %% Style subgraph titles
+    style AC fill:#444,stroke:#333,stroke-width:2px,color:white
+    style DB fill:#444,stroke:#333,stroke-width:2px,color:white
+    style UC fill:#444,stroke:#333,stroke-width:2px,color:white
+```
+
 ## Hardware Overview
 
 ```mermaid
 graph TB
-    subgraph Master[Master Controller - Raspberry Pi 5]
-        M1[Network Controller] --> M2[UART Interface]
-        M1 --> M3[File System]
-        M2 --> M4[Boot Control]
+    subgraph master["MASTER CONTROLLER(RPi5)"]
+        subgraph Network["Network Management"]
+            M1[Network Controller]
+        end
+        subgraph Communication["Communication"]
+            M2[UART Interface]
+            M4[Boot Control]
+        end
+        subgraph Storage["Storage"]
+            M3[File System]
+        end
+        M1 --> M2
+        M1 --> M3
+        M2 --> M4
     end
 
-    subgraph Target[Target Board - Crystal NXP i.MX6DL]
-        T1[Network Interface] --> T2[UART]
-        T2 --> T3[U-Boot]
-        T3 --> T4[eMMC Storage]
+    subgraph target["TARGET BOARD(Crystal)"]
+        subgraph InterfaceGroup["Network & UART"]
+            T1[Network Interface]
+            T2[UART]
+        end
+        subgraph Boot["Boot System"]
+            T3[U-Boot]
+            T4[eMMC Storage]
+        end
+        T1 --> T2
+        T2 --> T3
+        T3 --> T4
     end
 
     M1 -->|Ethernet| T1
     M2 -->|Serial| T2
     M3 -->|OS Image| T4
 
-    classDef master fill:#f96,stroke:#333,stroke-width:2px
-    classDef target fill:#69f,stroke:#333,stroke-width:2px
-    
+    classDef master fill:#ff9966,stroke:#333,stroke-width:3px,color:#000
+    classDef target fill:#6699ff,stroke:#333,stroke-width:3px,color:#000
+    classDef subgroup fill:none,stroke:#666,stroke-width:2px,stroke-dasharray:5 5,color:#000
+    classDef default color:#000
+
     class M1,M2,M3,M4 master
     class T1,T2,T3,T4 target
+    class Network,Communication,Storage,InterfaceGroup,Boot subgroup
+
 ```
+
 
 ### Hardware Implementation
 
-<img src="/api/placeholder/800/400" alt="Hardware Setup Diagram" />
+<img src="VitroFixture.png" alt="Hardware Setup Diagram" />
 
-*Figure: Physical setup showing RPi 5 (Master) connected to Crystal Board (Target) via UART and Ethernet connections*
+*Figure: Physical setup showing the complete fixture design with RPi 5 (Master) inside the fixture case connected to Crystal Board (Target) via UART, Ethernet and SD adapter. Note: The connections will be enstablished thanks to the linear cart.*
 
-## System Architecture
-
-```mermaid
-graph TB
-    subgraph AutoSetup[AutoSetup Controller]
-        A[Main Coordinator] --> B[Network Setup]
-        A --> C[File Transfer]
-        A --> D[OS Installation]
-        A --> E[Component Orchestration]
-    end
-    
-    subgraph DBManager[MAC Database Manager]
-        F[GitHub Integration] --> G[MAC Assignment]
-        G --> H[Database Updates]
-        H --> I[Pull Request Management]
-    end
-    
-    subgraph UARTManager[UART Communication]
-        J[Serial Communication] --> K[Boot Management]
-        K --> L[MAC Programming]
-        L --> M[Environment Setup]
-    end
-    
-    AutoSetup --> DBManager
-    AutoSetup --> UARTManager
-    
-    classDef primary fill:#f9f,stroke:#333,stroke-width:2px
-    classDef secondary fill:#bbf,stroke:#333,stroke-width:2px
-    classDef tertiary fill:#bfb,stroke:#333,stroke-width:2px
-    
-    class A,E primary
-    class F,G,H,I secondary
-    class J,K,L,M tertiary
-```
 
 ## System Components
 
@@ -122,6 +169,7 @@ graph TB
 - Physical Connections:
   - UART Connection (3.3V TTL)
   - Ethernet Connection (Cat5e/Cat6)
+  - Custom SD adapter
   - Power Supply (5V/3A for RPi, 12V/1A for Crystal)
 
 ### Software Requirements
