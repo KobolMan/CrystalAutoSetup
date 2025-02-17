@@ -5,6 +5,10 @@ import serial
 import logging
 import sys
 import os
+import uuid
+import csv
+import argparse
+from git import Repo
 
 class BoardSetup:
     def __init__(self):
@@ -356,42 +360,243 @@ class BoardSetup:
             self.uart.close()
             self.logger.info("UART connection closed")
 
-def main():
-    setup = BoardSetup()
-    
-    try:
-        # Setup Raspberry Pi network
-        if not setup.setup_raspi_network():
-            sys.exit(1)
+class MACDatabase:
+    def __init__(self, csv_path, prefix='70:b3:d5:f1:9'):
+        self.csv_path = csv_path
+        self.prefix = prefix
         
-        # Setup UART connection
-        if not setup.setup_uart_connection():
-            sys.exit(1)
+    def get_available_mac(self):
+        try:
+            with open(self.csv_path, 'r') as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    if row[1] == '0':
+                        return row[0]
+            return None
+        except Exception as e:
+            print(f"Error reading CSV: {e}")
+            return None
         
-        # Setup Crystal network
-        if not setup.setup_crystal_network():
-            sys.exit(1)
+    def assign_mac(self, mac_addr, serial):
+        rows = []
+        updated = False
         
-        # Test connection
-        if not setup.test_connection():
-            sys.exit(1)
+        with open(self.csv_path, 'r') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if row[0] == mac_addr:
+                    rows.append([mac_addr, serial])
+                    updated = True
+                else:
+                    rows.append(row)
+                    
+        if updated:
+            with open(self.csv_path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerows(rows)
+            return True
+        return False
+
+class MACSetup:
+    def __init__(self, repo_url, local_path):
+        self.repo_url = repo_url
+        self.local_path = local_path
+        self.db = None
+        self.repo = None
         
-        # Transfer files
-        if not setup.transfer_files():
-            sys.exit(1)
+    def setup_git_config(self):
+        subprocess.run(['git', 'config', '--global', 'user.email', 'automation@company.com'])
+        subprocess.run(['git', 'config', '--global', 'user.name', 'Automation Bot'])
+
+    def clone_repo(self):
+        try:
+            if not os.path.exists(self.local_path):
+                self.repo = Repo.clone_from(self.repo_url, self.local_path)
+            else:
+                self.repo = Repo(self.local_path)
+            return self.repo
+        except Exception as e:
+            print(f"Clone failed: {e}")
+            return None
+
+    def get_mac_address(self):
+        self.db = MACDatabase(os.path.join(self.local_path, 'db.csv'))
+        return self.db.get_available_mac()
+
+    def assign_mac(self, mac_addr, serial):
+        return self.db.assign_mac(mac_addr, serial)
+
+    def create_branch(self, mac_addr, serial):
+        try:
+            branch_name = f"mac-assign-{uuid.uuid4().hex[:8]}"
+            current = self.repo.create_head(branch_name)
+            current.checkout()
+            return branch_name
+        except Exception as e:
+            print(f"Branch creation failed: {e}")
+            return None
+
+    def commit_changes(self, mac_addr, serial):
+        try:
+            if self.assign_mac(mac_addr, serial):
+                self.repo.index.add(['db.csv'])
+                self.repo.index.commit(f"Assign MAC {mac_addr} to serial {serial}")
+                return True
+            return False
+        except Exception as e:
+            print(f"Commit failed: {e}")
+            return False
+
+    def push_branch(self, branch_name):
+        try:
+            origin = self.repo.remote('origin')
+            origin.push(branch_name)
+            return True
+        except Exception as e:
+            print(f"Push failed: {e}")
+            return False
+
+    def create_pull_request(self, branch_name, mac_addr, serial, base_branch='main'):
+        try:
+            title = f"Assign MAC {mac_addr} to device {serial}"
+            body = f"Automated MAC address assignment\nMAC: {mac_addr}\nSerial: {serial}"
             
-        # Install and configure OS
-        if not setup.install_os():
-            sys.exit(1)
+            result = subprocess.run([
+                'gh', 'pr', 'create',
+                '--title', title,
+                '--body', body,
+                '--base', base_branch,
+                '--head', branch_name
+            ], cwd=self.local_path, capture_output=True, text=True)
+            
+            return result.returncode == 0, result.stdout
+        except Exception as e:
+            print(f"PR creation failed: {e}")
+            return False, str(e)
+
+    def merge_pull_request(self, pr_number):
+        try:
+            result = subprocess.run([
+                'gh', 'pr', 'merge',
+                str(pr_number),
+                '--merge',
+                '--delete-branch'
+            ], cwd=self.local_path, capture_output=True, text=True)
+            
+            return result.returncode == 0
+        except Exception as e:
+            print(f"PR merge failed: {e}")
+            return False
+
+class BoardSetupExtended(BoardSetup):
+    def __init__(self, github_token, repo_url):
+        super().__init__()
+        os.environ['GH_TOKEN'] = github_token
+        self.mac_setup = MACSetup(repo_url, '/tmp/mac-db')
+        self.serial_number = None
+
+    def get_serial_number(self):
+        """Get serial number from the board through UART"""
+        response = self.send_uart_command("cat /proc/cpuinfo | grep Serial")
+        if response:
+            self.serial_number = response.strip().split(':')[1].strip()
+            return self.serial_number
+        return None
+
+    def assign_mac_address(self):
+        """Handle MAC address assignment process"""
+        self.logger.info("Starting MAC address assignment...")
         
-        setup.logger.info("Setup completed successfully")
+        if not self.serial_number:
+            if not self.get_serial_number():
+                self.logger.error("Failed to get serial number")
+                return False
         
-    except KeyboardInterrupt:
-        setup.logger.info("Setup interrupted by user")
-    except Exception as e:
-        setup.logger.error(f"Unexpected error: {e}")
-    finally:
-        setup.cleanup()
+        try:
+            # Setup git and clone repo
+            self.mac_setup.setup_git_config()
+            self.mac_setup.clone_repo()
+            
+            # Get available MAC address
+            mac_addr = self.mac_setup.get_mac_address()
+            if not mac_addr:
+                self.logger.error("No available MAC addresses")
+                return False
+            
+            # Create branch and commit changes
+            branch_name = self.mac_setup.create_branch(mac_addr, self.serial_number)
+            self.mac_setup.commit_changes(mac_addr, self.serial_number)
+            
+            # Push branch and create PR
+            if not self.mac_setup.push_branch(branch_name):
+                self.logger.error("Failed to push branch")
+                return False
+            
+            success, pr_output = self.mac_setup.create_pull_request(
+                branch_name, mac_addr, self.serial_number
+            )
+            if not success:
+                self.logger.error("Failed to create pull request")
+                return False
+            
+            # Extract PR number and merge
+            pr_number = int(pr_output.split('/')[-1])
+            if not self.mac_setup.merge_pull_request(pr_number):
+                self.logger.error("Failed to merge pull request")
+                return False
+            
+            # Write MAC address to board
+            self.logger.info(f"Writing MAC address {mac_addr} to board...")
+            write_cmd = f"fw_setenv ethaddr {mac_addr}"
+            response = self.send_uart_command(write_cmd)
+            if not response:
+                self.logger.error("Failed to write MAC address to board")
+                return False
+            
+            self.logger.info("MAC address assignment completed successfully")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"MAC address assignment failed: {e}")
+            return False
+               
+def main():
+   parser = argparse.ArgumentParser(description='Board Setup and MAC Assignment Tool')
+   parser.add_argument('--github-token', required=True, help='GitHub token for authentication')
+   parser.add_argument('--repo-url', required=True, help='MAC database repository URL')
+   args = parser.parse_args()
+   
+   setup = BoardSetupExtended(args.github_token, args.repo_url)
+   
+   try:
+       steps = [
+           ('Setup Raspberry Pi network', setup.setup_raspi_network),
+           ('Setup UART connection', setup.setup_uart_connection),
+           ('Setup Crystal network', setup.setup_crystal_network),
+           ('Test connection', setup.test_connection),
+           ('Transfer files', setup.transfer_files),
+           ('Install OS', setup.install_os),
+           ('Assign MAC address', setup.assign_mac_address)
+       ]
+       
+       for step_name, step_func in steps:
+           setup.logger.info(f"Starting: {step_name}")
+           if not step_func():
+               setup.logger.error(f"Failed at: {step_name}")
+               sys.exit(1)
+           setup.logger.info(f"Completed: {step_name}")
+           
+       setup.logger.info("Setup completed successfully")
+       
+   except KeyboardInterrupt:
+       setup.logger.info("Setup interrupted by user")
+   except Exception as e:
+       setup.logger.error(f"Unexpected error: {e}")
+   finally:
+       setup.cleanup()
+
+if __name__ == "__main__":
+   main()
 
 if __name__ == "__main__":
     main()
