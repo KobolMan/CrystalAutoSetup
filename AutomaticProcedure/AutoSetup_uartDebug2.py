@@ -140,53 +140,6 @@ class BoardSetup:
         except subprocess.CalledProcessError as e:
             return False, e.stderr
 
-    def setup_raspi_network(self):
-        """Configure network on Raspberry Pi"""
-        self.logger.info("Configuring Raspberry Pi network...")
-        self.lcd.clear()
-        self.lcd.write("Setting up", 0)
-        self.lcd.write("Raspberry Pi Net", 1)
-
-        # More thorough flush and reset sequence
-        commands = [
-            # Complete flush and reset
-            f"sudo ip addr flush dev {self.raspi_interface}",
-            f"sudo ip link set {self.raspi_interface} down",
-            #"sudo ip neigh flush all",  # Clear ARP cache
-            "sleep 2",  # Give time for complete interface reset
-
-            # Configure and bring up
-            f"sudo ip addr add {self.raspi_ip}/{self.netmask} dev {self.raspi_interface}",
-            f"sudo ip link set {self.raspi_interface} up",
-            "sleep 1",  # Give interface time to stabilize
-
-            # Set speed/duplex AFTER interface is up
-            f"sudo ethtool -s {self.raspi_interface} speed 10 duplex full autoneg off",
-            #"sleep 1"  # Brief pause after speed setting
-        ]
-
-        for cmd in commands:
-            success, output = self.run_command(cmd)
-            if not success and "sleep" not in cmd:  # Don't fail on sleep commands
-                self.logger.error(f"Failed on command: {cmd}")
-                self.logger.error(f"Error output: {output}")
-                self.lcd.clear()
-                self.lcd.write("Network Setup", 0)
-                self.lcd.write("Failed!", 1)
-                return False
-
-        # Verify configuration
-        success, output = self.run_command(f"ip addr show {self.raspi_interface}")
-        self.logger.info(f"Raspberry Pi interface config: {output}")
-
-        # Also verify link status
-        success, output = self.run_command(f"ethtool {self.raspi_interface} | grep Link")
-        self.logger.info(f"Raspberry Pi link status: {output}")
-
-        self.logger.info("Raspberry Pi network configuration completed")
-        return True
-
-
     def power_on_crystal(self):
         """Power on the Crystal board"""
         self.logger.info("Powering on Crystal board...")
@@ -380,63 +333,6 @@ class BoardSetup:
             self.lcd.write("Login Failed", 0)
             return False
 
-
-    def setup_crystal_network(self):
-        """Configure network on Crystal board through UART"""
-        self.logger.info("Configuring Crystal board network...")
-        self.lcd.clear()
-        self.lcd.write("Setting up", 0)
-        self.lcd.write("Crystal Network", 1)
-
-        # Attempt login
-        if not self.attempt_login():
-            self.logger.error("Failed to login to Crystal board - check credentials")
-            return False
-
-        # Get initial interface state
-        response = self.send_uart_command(f"ip addr show {self.crystal_interface}", wait_time=2)
-        self.logger.info(f"Crystal initial interface state: {response}")
-
-        # Configure network with the same careful sequence
-        commands = [
-            # Flush and reset
-            #f"ip addr flush dev {self.crystal_interface}",
-            #f"ip link set {self.crystal_interface} down",
-            #"ip neigh flush all",  # Clear ARP cache
-            #"sleep 2",
-
-            # Configure and bring up
-            f"ip addr add {self.crystal_ip}/{self.netmask} dev {self.crystal_interface}",
-            f"ip link set {self.crystal_interface} up",
-            #"sleep 2",
-
-            # IMPORTANT: Match speed/duplex settings with Raspberry Pi
-            #f"ethtool -s {self.crystal_interface} speed 10 duplex full autoneg off",
-            #"sleep 1"
-        ]
-
-        for cmd in commands:
-            if "sleep" in cmd:
-                # Handle sleep commands differently
-                seconds = int(cmd.split()[1])
-                time.sleep(seconds)
-                continue
-
-            response = self.send_uart_command(cmd, wait_time=2)
-            if not response and "ethtool" not in cmd:  # Don't fail on ethtool (it might not be available)
-                self.logger.error(f"Failed on command: {cmd}")
-                self.lcd.clear()
-                self.lcd.write("Crystal Network", 0)
-                self.lcd.write("Failed!", 1)
-                return False
-    
-        # Verify configuration
-        response = self.send_uart_command(f"ip addr show {self.crystal_interface}", wait_time=2)
-        self.logger.info(f"Crystal interface config: {response}")
-
-        self.logger.info("Crystal network configuration completed")
-        return True
-
     def test_connection(self):
         """Test network connection between Raspberry Pi and Crystal"""
         self.logger.info("Testing network connection...")
@@ -453,7 +349,7 @@ class BoardSetup:
 
         # Simple ping test from Pi to Crystal
         self.logger.info("Pinging Crystal board...")
-        success, output = self.run_command(f"ping -c 3 -W 5 {self.crystal_ip}")
+        success, output = self.run_command(f"ping -c 3 -W 10 {self.crystal_ip}")
 
         if not success:
             # One retry with longer timeout
@@ -478,18 +374,6 @@ class BoardSetup:
             return ip in output
         return False
 
-    def remove_ip(self, ip, interface):
-        """Remove an IP address from the interface"""
-        if self.check_ip_exists(ip, interface):
-            success, output = self.run_command(f"sudo ip addr del {ip}/{self.netmask} dev {interface}")
-            if success:
-                self.logger.info(f"Removed existing IP {ip} from {interface}")
-                return True
-            else:
-                self.logger.error(f"Failed to remove IP {ip}: {output}")
-                return False
-        return True
-    
     def enter_uboot(self):
         """Interrupt boot and enter U-Boot"""
         self.logger.info("Interrupting boot to enter U-Boot...")
@@ -500,35 +384,39 @@ class BoardSetup:
         # Power cycle to ensure clean boot
         self.gpio_mgr.power_cycle_crystal()
 
-        # Wait for U-Boot to start
-        time.sleep(5)
+        # Wait for the board to start booting
+        time.sleep(1)
 
-        # Look for the signal to press a key
-        boot_timer = 0
-        while boot_timer < 10:  # Wait up to 10 seconds
-            response = self.uart.read_all().decode()
-            if "Hit any key to stop autoboot" in response:
-                # Send space to interrupt
-                self.uart.write(b' ')
-                time.sleep(1)
-                # Check for U-Boot prompt
-                response = self.uart.read_all().decode()
-                if "=>" in response:
-                    self.logger.info("Successfully entered U-Boot")
-                    return True
-                break
-            time.sleep(1)
-            boot_timer += 1
+        # Send 'b' key multiple times to increase chances of catching the boot window
+        for _ in range(3):
+            self.uart.write(b'b')
+            time.sleep(0.2)  # Short pause between key presses
 
-        self.logger.error("Failed to enter U-Boot")
-        self.lcd.clear()
-        self.lcd.write("U-Boot Entry", 0)
-        self.lcd.write("Failed!", 1)
-        return False
+        # Wait for U-Boot to initialize
+        time.sleep(2)
+
+        # Read response and handle UTF-8 decoding errors
+        response = self.uart.read_all().decode('utf-8', errors='replace')
+
+        # Add debug logging to see what we're getting back
+        self.logger.debug(f"UART response after sending 'b': {repr(response)}")
+
+        if "=>" in response:
+            self.logger.info("Successfully entered U-Boot")
+            return True
+        else:
+            self.logger.error("Failed to enter U-Boot")
+            self.lcd.clear()
+            self.lcd.write("U-Boot Entry", 0)
+            self.lcd.write("Failed!", 1)
+            return False
 
     def transfer_files(self):
         """Transfer both image and bmap files using SCP"""
         self.logger.info("Starting file transfer to Crystal board...")
+        self.lcd.clear()
+        self.lcd.write("Transferring", 0)
+        self.lcd.write("Image Files...", 1)
         
         # Check if files exist and get their sizes
         files_to_transfer = {
@@ -803,13 +691,14 @@ def main():
         setup.power_on_crystal()
         
         steps = [
-            ('Setup Raspberry Pi network', setup.setup_raspi_network),
-            ('Setup UART connection', setup.setup_uart_connection),
-            ('Setup Crystal network', setup.setup_crystal_network),
+            
+            ('Setup UART connection', setup.setup_uart_connection), 
             ('Test connection', setup.test_connection),
             ('Transfer files', setup.transfer_files),
-            #('Install OS', setup.install_os),
-            #('Assign MAC address', setup.assign_mac_address)
+            ('Install OS', setup.install_os),
+            ('Assign MAC address', setup.assign_mac_address)
+            
+  
         ]
         
         for step_name, step_func in steps:

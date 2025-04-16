@@ -112,9 +112,9 @@ class GPIOManager:
     def power_cycle_crystal(self):
         """Power cycle the Crystal board"""
         self.power_off_crystal()
-        time.sleep(2)  # Wait between power cycles
+        #time.sleep(2)  # Wait between power cycles
         self.power_on_crystal()
-        time.sleep(2)  # Wait for boot
+        #time.sleep(1)  # Wait for boot
         
     def wait_for_button_press(self, timeout=None):
         """
