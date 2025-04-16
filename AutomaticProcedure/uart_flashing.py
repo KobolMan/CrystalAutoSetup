@@ -25,16 +25,32 @@ def convert_mac_to_fuse_values(mac_str):
         return None, None
 
 class UARTFlasher:
-    def __init__(self, port="/dev/ttyAMA0", baudrate=115200):
-        self.uart = None
-        self.port = port
-        self.baudrate = baudrate
+    def __init__(self, port="/dev/ttyAMA0", baudrate=115200, existing_uart=None, existing_logger=None):
+        # Use existing UART if provided
+        if existing_uart:
+            self.uart = existing_uart
+            self.own_uart = False  # Flag to indicate we didn't create this UART
+        else:
+            self.uart = None
+            self.port = port
+            self.baudrate = baudrate
+            self.own_uart = True
+        
         self.mac_db = MACDatabase()
         
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-        self.logger = logging.getLogger(__name__)
+        # Use existing logger if provided
+        if existing_logger:
+            self.logger = existing_logger
+        else:
+            logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+            self.logger = logging.getLogger(__name__)
 
     def setup_uart(self):
+        # Skip setup if using existing UART
+        if not self.own_uart:
+            self.logger.info("Using existing UART connection")
+            return True
+            
         try:
             self.uart = serial.Serial(port=self.port, baudrate=self.baudrate, timeout=1)
             self.logger.info(f"UART opened on {self.port}")
@@ -76,18 +92,20 @@ class UARTFlasher:
         return buffer
 
     def wait_for_boot_prompt(self, timeout=30):
-        self.logger.info("Waiting for boot prompt...")
-        start_time = time.time()
-        while (time.time() - start_time) < timeout:
-            response = self.read_uart()
-            if response:
-                self.logger.info(f"Boot: {response}")
-                if "Loading Environment from MMC... OK" in response:
-                    self.logger.info("Sending interrupt...")
-                    self.uart.write(b' ')
-                    time.sleep(0.5)
-                    return True
-        return False
+        """Check if we're at the U-Boot prompt"""
+        self.logger.info("Checking for U-Boot prompt...")
+         
+        # Send a newline to see if we get a prompt back
+        self.uart.write(b"\n")
+        time.sleep(1)
+         
+        response = self.read_uart()
+        if "=>" in response:
+            self.logger.info("Confirmed at U-Boot prompt")
+            return True
+        else:
+            self.logger.error("Not at U-Boot prompt")
+            return False
 
     def send_command(self, command, wait_for_confirmation=False):
         """
@@ -175,7 +193,8 @@ class UARTFlasher:
         return True
 
     def cleanup(self):
-        if self.uart and self.uart.is_open:
+        # Only close UART if we created it
+        if self.own_uart and self.uart and self.uart.is_open:
             self.uart.close()
             self.logger.info("UART closed")
 
@@ -211,5 +230,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-#This version is now able to flash the MAC address to the device and update the database accordingly. One feature to add is a check that the serial number is not already flashed with a MAC address. This should be done before attempting to flash the OS, so the check should be added to the AutoSetup.py script before even attempting to flash the OS to the eMMC.

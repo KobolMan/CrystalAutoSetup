@@ -9,7 +9,7 @@ import argparse
 from lcd_gpio import GroveLCD, GPIOManager
 
 class BoardSetup:
-    def __init__(self, use_button=True):
+    def __init__(self, use_button=True, debug_uart=False):
         # Setup logging first
         logging.basicConfig(
             level=logging.INFO,
@@ -21,12 +21,20 @@ class BoardSetup:
         self.gpio_mgr = GPIOManager()
         self.lcd = GroveLCD()
         self.use_button = use_button
-        
+        # Add debug_uart flag
+        self.debug_uart = debug_uart
+        if self.debug_uart:
+            # Create or clear debug log file
+            with open("uart_debug.log", "w") as f:
+                f.write(f"UART Debug Log - Started at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("-" * 60 + "\n")
+
         # Network configuration
         self.raspi_ip = "192.168.2.1"
         self.crystal_ip = "192.168.2.2"
         self.netmask = "24"
-        self.interface = "eth2"
+        self.raspi_interface = "eth2"  # Interface on Raspberry Pi
+        self.crystal_interface = "eth0"  # Interface on Crystal board
         
         # File transfer configuration
         self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -63,6 +71,34 @@ class BoardSetup:
         
         # Serial number storage
         self.serial_number = None
+
+    def debug_uart_log(self, direction, message, data):
+        """Log UART communication when debug is enabled"""
+        if not self.debug_uart:
+            return
+
+        if direction == "sent":
+            prefix = ">>> SENT TO CRYSTAL:"
+        else:
+            prefix = "<<< RECEIVED FROM CRYSTAL:"
+
+        # Format the data for better readability
+        if data:
+            formatted_data = repr(data)
+        else:
+            formatted_data = "[NO DATA]"
+
+        # Log to console with colors
+        print(f"\n\033[93m{prefix}\033[0m [{message}]")
+        print(f"\033[96m{formatted_data}\033[0m")
+        print("\033[90m" + "-" * 60 + "\033[0m")
+
+        # Also log to a file for later inspection
+        with open("uart_debug.log", "a") as f:
+            f.write(f"\n{prefix} [{message}] - {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"{formatted_data}\n")
+            f.write("-" * 60 + "\n")
+
 
     def wait_for_start(self):
         """Wait for button press if button is enabled"""
@@ -109,28 +145,47 @@ class BoardSetup:
         self.logger.info("Configuring Raspberry Pi network...")
         self.lcd.clear()
         self.lcd.write("Setting up", 0)
-        self.lcd.write("Network...", 1)
-        
-        # First, remove existing IP if present
-        if not self.remove_ip(self.raspi_ip, self.interface):
-            return False
-            
+        self.lcd.write("Raspberry Pi Net", 1)
+
+        # More thorough flush and reset sequence
         commands = [
-            f"sudo ip addr add {self.raspi_ip}/{self.netmask} dev {self.interface}",
-            f"sudo ip link set {self.interface} up"
+            # Complete flush and reset
+            f"sudo ip addr flush dev {self.raspi_interface}",
+            f"sudo ip link set {self.raspi_interface} down",
+            #"sudo ip neigh flush all",  # Clear ARP cache
+            "sleep 2",  # Give time for complete interface reset
+
+            # Configure and bring up
+            f"sudo ip addr add {self.raspi_ip}/{self.netmask} dev {self.raspi_interface}",
+            f"sudo ip link set {self.raspi_interface} up",
+            "sleep 1",  # Give interface time to stabilize
+
+            # Set speed/duplex AFTER interface is up
+            f"sudo ethtool -s {self.raspi_interface} speed 10 duplex full autoneg off",
+            #"sleep 1"  # Brief pause after speed setting
         ]
-        
+
         for cmd in commands:
             success, output = self.run_command(cmd)
-            if not success:
-                self.logger.error(f"Failed to configure Raspberry Pi network: {output}")
+            if not success and "sleep" not in cmd:  # Don't fail on sleep commands
+                self.logger.error(f"Failed on command: {cmd}")
+                self.logger.error(f"Error output: {output}")
                 self.lcd.clear()
                 self.lcd.write("Network Setup", 0)
                 self.lcd.write("Failed!", 1)
                 return False
-        
+
+        # Verify configuration
+        success, output = self.run_command(f"ip addr show {self.raspi_interface}")
+        self.logger.info(f"Raspberry Pi interface config: {output}")
+
+        # Also verify link status
+        success, output = self.run_command(f"ethtool {self.raspi_interface} | grep Link")
+        self.logger.info(f"Raspberry Pi link status: {output}")
+
         self.logger.info("Raspberry Pi network configuration completed")
         return True
+
 
     def power_on_crystal(self):
         """Power on the Crystal board"""
@@ -140,9 +195,48 @@ class BoardSetup:
         self.lcd.write("Crystal...", 1)
         
         self.gpio_mgr.power_on_crystal()
-        time.sleep(2)  # Wait for crystal to boot
+        time.sleep(5)  # Wait for crystal to boot
         
         return True
+    def wait_for_boot_completion(self):
+        """Wait for Crystal board to complete booting"""
+        self.logger.info("Waiting for Crystal boot to complete...")
+        self.lcd.clear()
+        self.lcd.write("Waiting for", 0)
+        self.lcd.write("Boot completion", 1)
+
+        max_wait_time = 120  # Maximum 2 minutes to wait
+        start_time = time.time()
+
+        # Clear any existing data in the buffer
+        self.uart.reset_input_buffer()
+
+        while (time.time() - start_time) < max_wait_time:
+            # Send a newline to prompt output
+            self.uart.write(b"\r\n")
+            time.sleep(2)
+
+            # Read what's in the buffer
+            response = self.uart.read_all().decode(errors='replace')
+
+            # Check for login prompt - this indicates boot is complete
+            if "login:" in response:
+                self.logger.info("Boot complete, login prompt detected")
+                return True
+
+            # Check for shell prompt (# or $) - this indicates already logged in
+            if "# " in response or "$ " in response:
+                self.logger.info("Boot complete, shell prompt detected")
+                return True
+
+            # Look for systemd boot messages
+            if "[OK]" in response or "Starting" in response:
+                self.logger.info("Boot still in progress, continuing to wait...")
+
+            time.sleep(5)  # Check every 5 seconds
+
+        self.logger.warning("Timeout waiting for boot completion")
+        return False
 
     def power_cycle_crystal(self):
         """Power cycle the Crystal board"""
@@ -187,15 +281,24 @@ class BoardSetup:
         """Send command through UART and wait for response"""
         try:
             self.logger.debug(f"Sending UART command: {command}")
-            self.uart.write(f"{command}\n".encode())
+
+            # Clear input buffer before sending
+            self.uart.reset_input_buffer()
+
+            # Debug log before sending
+            if self.debug_uart:
+                self.debug_uart_log("sent", "Command", command)
+
+            # Send command with proper line ending
+            self.uart.write(f"{command}\r\n".encode())
+            self.uart.flush()
             time.sleep(wait_time)
-            
-            response = self.uart.read_all().decode()
-            if response:
-                self.logger.debug(f"Received response: {response.strip()}")
-            else:
-                self.logger.debug("No response received")
-                
+
+            # Read and log response
+            response = self.uart.read_all().decode(errors='replace')
+            if self.debug_uart:
+                self.debug_uart_log("received", "Response", response)
+
             return response
         except serial.SerialTimeoutException:
             self.logger.error("UART command timed out")
@@ -209,50 +312,74 @@ class BoardSetup:
 
     def attempt_login(self):
         """Attempt to login to Crystal board via UART"""
+        # First make sure boot is complete
+        if not self.wait_for_boot_completion():
+            self.logger.error("Cannot login - boot not completed")
+            return False
+
         self.logger.info("Attempting to login to Crystal board...")
         self.lcd.clear()
         self.lcd.write("Logging in to", 0)
         self.lcd.write("Crystal...", 1)
-        
-        # Send initial newline to clear any pending input
-        #self.uart.write(b"\n")
-        time.sleep(1)
+
+        # Clear buffers
         self.uart.reset_input_buffer()
         self.uart.reset_output_buffer()
-        
-        # Wait for login prompt
-        time.sleep(2)
-        
+
+        # Check if we need to login at all
+        self.uart.write(b"\r\n")
+        time.sleep(1)
+        response = self.uart.read_all().decode(errors='replace')
+
+        # If we already have a shell prompt, no need to login
+        if "# " in response:
+            self.logger.info("Already logged in as root")
+            return True
+
+        # We need to login - look for the login prompt
+        if "login:" not in response:
+            self.logger.info("No login prompt found, sending newline to trigger it")
+            self.uart.write(b"\r\n")
+            time.sleep(2)
+            response = self.uart.read_all().decode(errors='replace')
+
+        if "login:" not in response:
+            self.logger.error("Cannot find login prompt")
+            return False
+
         # Send login
         self.logger.debug("Sending login...")
-        response = self.send_uart_command(self.crystal_login, wait_time=2)
-        if not response:
-            self.logger.error("No response received after sending login")
+        self.uart.write(f"{self.crystal_login}\r".encode())
+        time.sleep(2)
+
+        # Look for password prompt
+        response = self.uart.read_all().decode(errors='replace')
+        if "Password:" not in response and "password:" not in response:
+            self.logger.error("No password prompt received")
             return False
-        
-        # Wait before sending password
-        time.sleep(1)
-        
+    
         # Send password
         self.logger.debug("Sending password...")
-        response = self.send_uart_command(self.crystal_password, wait_time=2)
-        if not response:
-            self.logger.error("No response received after sending password")
-            return False
-        
-        # Wait for login to complete
-        time.sleep(2)
-        
-        # Send another newline to verify we're logged in
-        response = self.send_uart_command("")
-        if response and ("login" in response.lower() or "password" in response.lower()):
-            self.logger.error("Login failed - system still requesting credentials")
+        self.uart.write(f"{self.crystal_password}\r".encode())
+        time.sleep(4)
+
+        # Verify login by looking for shell prompt
+        self.uart.write(b"\r\n")
+        time.sleep(1)
+        response = self.uart.read_all().decode(errors='replace')
+
+        if "# " in response:  # Root shell prompt
+            self.logger.info("Successfully logged in as root")
+            return True
+        elif "$ " in response:  # Regular user shell prompt
+            self.logger.info("Successfully logged in as user")
+            return True
+        else:
+            self.logger.error("Login failed - no shell prompt detected")
             self.lcd.clear()
             self.lcd.write("Login Failed", 0)
             return False
-            
-        self.logger.info("Successfully logged into Crystal board")
-        return True
+
 
     def setup_crystal_network(self):
         """Configure network on Crystal board through UART"""
@@ -260,27 +387,53 @@ class BoardSetup:
         self.lcd.clear()
         self.lcd.write("Setting up", 0)
         self.lcd.write("Crystal Network", 1)
-        
+
         # Attempt login
         if not self.attempt_login():
             self.logger.error("Failed to login to Crystal board - check credentials")
             return False
-            
-        # Configure network
+
+        # Get initial interface state
+        response = self.send_uart_command(f"ip addr show {self.crystal_interface}", wait_time=2)
+        self.logger.info(f"Crystal initial interface state: {response}")
+
+        # Configure network with the same careful sequence
         commands = [
-            f"ip addr add {self.crystal_ip}/{self.netmask} dev {self.interface}",
-            f"ip link set {self.interface} up"
+            # Flush and reset
+            #f"ip addr flush dev {self.crystal_interface}",
+            #f"ip link set {self.crystal_interface} down",
+            #"ip neigh flush all",  # Clear ARP cache
+            #"sleep 2",
+
+            # Configure and bring up
+            f"ip addr add {self.crystal_ip}/{self.netmask} dev {self.crystal_interface}",
+            f"ip link set {self.crystal_interface} up",
+            #"sleep 2",
+
+            # IMPORTANT: Match speed/duplex settings with Raspberry Pi
+            #f"ethtool -s {self.crystal_interface} speed 10 duplex full autoneg off",
+            #"sleep 1"
         ]
-        
+
         for cmd in commands:
+            if "sleep" in cmd:
+                # Handle sleep commands differently
+                seconds = int(cmd.split()[1])
+                time.sleep(seconds)
+                continue
+
             response = self.send_uart_command(cmd, wait_time=2)
-            if not response:
-                self.logger.error("Failed to configure Crystal network")
+            if not response and "ethtool" not in cmd:  # Don't fail on ethtool (it might not be available)
+                self.logger.error(f"Failed on command: {cmd}")
                 self.lcd.clear()
                 self.lcd.write("Crystal Network", 0)
                 self.lcd.write("Failed!", 1)
                 return False
-        
+    
+        # Verify configuration
+        response = self.send_uart_command(f"ip addr show {self.crystal_interface}", wait_time=2)
+        self.logger.info(f"Crystal interface config: {response}")
+
         self.logger.info("Crystal network configuration completed")
         return True
 
@@ -290,16 +443,31 @@ class BoardSetup:
         self.lcd.clear()
         self.lcd.write("Testing", 0)
         self.lcd.write("Connection...", 1)
-        
-        # Test ping from Raspberry Pi to Crystal
-        success, output = self.run_command(f"ping -c 3 {self.crystal_ip}")
+
+        # Wait for everything to stabilize
+        self.logger.info("Waiting for network to fully stabilize...")
+        time.sleep(10)
+
+        # Final ARP cache clearing
+        #self.run_command(f"sudo ip neigh flush dev {self.raspi_interface}")
+
+        # Simple ping test from Pi to Crystal
+        self.logger.info("Pinging Crystal board...")
+        success, output = self.run_command(f"ping -c 3 -W 5 {self.crystal_ip}")
+
         if not success:
-            self.logger.error("Failed to ping Crystal from Raspberry Pi")
+            # One retry with longer timeout
+            self.logger.info("First ping failed, retrying once...")
+            time.sleep(2)
+            success, output = self.run_command(f"ping -c 3 -W 10 {self.crystal_ip}")
+
+        if not success:
+            self.logger.error(f"Failed to ping Crystal: {output}")
             self.lcd.clear()
             self.lcd.write("Connection Test", 0)
             self.lcd.write("Failed!", 1)
             return False
-        
+
         self.logger.info("Network connection test successful")
         return True
 
@@ -364,14 +532,14 @@ class BoardSetup:
         self.lcd.clear()
         self.lcd.write("Transferring", 0)
         self.lcd.write("Files...", 1)
-        
+
         # Check if files exist and get their sizes
         files_to_transfer = {
             'Image file': self.image_file,
             'BMAP file': self.bmap_file,
             'SSH key': self.key_file
         }
-        
+
         file_sizes = {}
         for file_desc, filepath in files_to_transfer.items():
             if not os.path.exists(filepath):
@@ -385,66 +553,84 @@ class BoardSetup:
                 size_mb = size_bytes / (1024 * 1024)
                 file_sizes[filepath] = size_mb
                 self.logger.info(f"{file_desc} size: {size_mb:.2f} MB")
-            
+
         self.logger.info(f"Using base directory: {self.base_dir}")
-        
+
         # Ensure key file has correct permissions
         os.chmod(self.key_file, 0o600)
-        
+
+        # Make sure /tmp directory exists on target
+        self.send_uart_command("mkdir -p /tmp", wait_time=1)
+
         # Transfer each file
         files_to_send = [self.image_file, self.bmap_file]
+        #files_to_send = [self.bmap_file]
         total_transferred = 0
         start_time = time.time()
-        
+
         for filepath in files_to_send:
             filename = os.path.basename(filepath)
             file_size = file_sizes[filepath]
-            
+
             self.logger.info(f"\nStarting transfer of {filename} ({file_size:.2f} MB)...")
             self.lcd.clear()
             self.lcd.write("Transferring:", 0)
-            self.lcd.write(f"{filename[:16]}", 1) # Display first 16 chars of filename
-            
+            self.lcd.write(f"{filename[:16]}", 1)
+
+            # Use standard SCP with timeout settings increased
             transfer_start = time.time()
+
+            # Use BatchMode to prevent password prompts
             scp_command = (
-                f"scp -v -i {self.key_file} -o StrictHostKeyChecking=no "
+                f"scp -O -v -i {self.key_file} -o StrictHostKeyChecking=no -o BatchMode=yes "
+                f"-o ConnectTimeout=30 -o ServerAliveInterval=60 "
                 f"{filepath} {self.remote_user}@{self.crystal_ip}:{self.remote_path}"
             )
-            
+
             success, output = self.run_command(scp_command)
             transfer_end = time.time()
-            
+
             if not success:
                 self.logger.error(f"Failed to transfer {filename}: {output}")
-                self.lcd.clear()
-                self.lcd.write("Transfer Failed", 0)
-                self.lcd.write(f"{filename[:16]}", 1)
-                return False
-            
+
+                # If the first attempt fails, try once more with simpler options
+                self.logger.info("Retrying with basic options...")
+                retry_command = (
+                    f"scp -i {self.key_file} -o StrictHostKeyChecking=no "
+                    f"{filepath} {self.remote_user}@{self.crystal_ip}:{self.remote_path}"
+                )
+                success, output = self.run_command(retry_command)
+
+                if not success:
+                    self.lcd.clear()
+                    self.lcd.write("Transfer Failed", 0)
+                    self.lcd.write(f"{filename[:16]}", 1)
+                    return False
+
             # Calculate transfer statistics
             transfer_time = transfer_end - transfer_start
             transfer_speed = file_size / transfer_time if transfer_time > 0 else 0
-            
+
             self.logger.info(f"Successfully transferred {filename}")
             self.logger.info(f"Transfer time: {transfer_time:.2f} seconds")
             self.logger.info(f"Transfer speed: {transfer_speed:.2f} MB/s")
-            
+
             total_transferred += file_size
-            
+
         # Final statistics
         total_time = time.time() - start_time
         avg_speed = total_transferred / total_time if total_time > 0 else 0
-        
+
         self.logger.info("\nTransfer Summary:")
         self.logger.info(f"Total data transferred: {total_transferred:.2f} MB")
         self.logger.info(f"Total time: {total_time:.2f} seconds")
         self.logger.info(f"Average transfer speed: {avg_speed:.2f} MB/s")
-        
+
         self.lcd.clear()
         self.lcd.write("Transfer Done", 0)
-        self.lcd.write(f"{total_transferred:.1f}MB {avg_speed:.1f}MB/s", 1)
+        self.lcd.write(f"{total_transferred:.1f}MB", 1)
         time.sleep(2)
-        
+
         self.logger.info("All files transferred successfully")
         return True
 
@@ -639,9 +825,10 @@ class BoardSetup:
 def main():
     parser = argparse.ArgumentParser(description='Board Setup and MAC Assignment Tool')
     parser.add_argument('--no-button', action='store_true', help='Disable button requirement to start')
+    parser.add_argument('--debug-uart', action='store_true', help='Enable UART debugging and interactive mode')
     args = parser.parse_args()
     
-    setup = BoardSetup(use_button=not args.no_button)
+    setup = BoardSetup(use_button=not args.no_button, debug_uart=args.debug_uart)
     
     try:
         # Wait for button press if enabled
