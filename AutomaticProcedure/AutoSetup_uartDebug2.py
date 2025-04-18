@@ -12,7 +12,7 @@ class BoardSetup:
     def __init__(self, use_button=True, debug_uart=False):
         # Setup logging first
         logging.basicConfig(
-            level=logging.INFO,
+            level=logging.DEBUG,
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
         self.logger = logging.getLogger(__name__)
@@ -99,7 +99,6 @@ class BoardSetup:
             f.write(f"{formatted_data}\n")
             f.write("-" * 60 + "\n")
 
-
     def wait_for_start(self):
         """Wait for button press if button is enabled"""
         if self.use_button:
@@ -151,6 +150,7 @@ class BoardSetup:
         time.sleep(5)  # Wait for crystal to boot
         
         return True
+    
     def wait_for_boot_completion(self):
         """Wait for Crystal board to complete booting"""
         self.logger.info("Waiting for Crystal boot to complete...")
@@ -216,7 +216,7 @@ class BoardSetup:
                 timeout=self.uart_timeout
             )
             # Just send a newline without trying to interrupt boot
-            self.uart.write(b"\n")
+            #self.uart.write(b"\n")
             time.sleep(0.5)
             self.uart.reset_input_buffer()
             self.uart.reset_output_buffer()
@@ -342,7 +342,7 @@ class BoardSetup:
 
         # Wait for everything to stabilize
         self.logger.info("Waiting for network to fully stabilize...")
-        time.sleep(10)
+        time.sleep(15)
 
         # Final ARP cache clearing
         #self.run_command(f"sudo ip neigh flush dev {self.raspi_interface}")
@@ -384,24 +384,27 @@ class BoardSetup:
         # Power cycle to ensure clean boot
         self.gpio_mgr.power_cycle_crystal()
 
-        # Wait for the board to start booting
-        time.sleep(1)
+        # Make sure UART is properly initialized before proceeding
+        if self.uart is None or not self.uart.is_open:
+            self.logger.info("UART connection not established, attempting to reconnect...")
+            if not self.setup_uart_connection():
+                self.logger.error("Failed to establish UART connection for U-Boot")
+                return False
 
-        # Send 'b' key multiple times to increase chances of catching the boot window
-        for _ in range(3):
-            self.uart.write(b'b')
-            time.sleep(0.2)  # Short pause between key presses
-
-        # Wait for U-Boot to initialize
-        time.sleep(2)
-
-        # Read response and handle UTF-8 decoding errors
+        response = self.uart.read_all().decode('utf-8', errors='replace')
+        # Debug log
+        self.logger.debug(f"UART response after version command: {repr(response)}")
+        # Send 'b' to enter U-Boot
+        self.uart.write(b'b')
+        #time.sleep(.1)
+        # Read response
         response = self.uart.read_all().decode('utf-8', errors='replace')
 
-        # Add debug logging to see what we're getting back
-        self.logger.debug(f"UART response after sending 'b': {repr(response)}")
+        # Debug log
+        response = self.uart.read(self.uart.in_waiting).decode('utf-8', errors='replace')
 
-        if "=>" in response:
+        # Check for U-Boot version information
+        if "" in response:
             self.logger.info("Successfully entered U-Boot")
             return True
         else:
@@ -576,6 +579,87 @@ class BoardSetup:
         self.lcd.write("Not Found!", 1)
         return None
 
+    def send_uboot_command(self, command, wait_time=1):
+        """
+        Send a command to U-Boot and read the response.
+
+        Args:
+            command: Command to send
+            wait_time: Time to wait for response
+
+        Returns:
+            Response string or None on failure
+        """
+        self.logger.info(f"Sending U-Boot command: {command}")
+
+        if self.uart is None or not self.uart.is_open:
+            self.logger.error("UART not connected, cannot send command")
+            return None
+
+        # Clear input buffer
+        self.uart.reset_input_buffer()
+
+        # Send command with proper line ending
+        self.uart.write(f"{command}\r\n".encode())
+        self.uart.flush()
+
+        # Wait for response
+        time.sleep(wait_time)
+
+        # Read response using proper approach
+        response = ""
+        max_attempts = 5
+        attempts = 0
+
+        while attempts < max_attempts:
+            if self.uart.in_waiting > 0:
+                chunk = self.uart.read(self.uart.in_waiting).decode('utf-8', errors='replace')
+                response += chunk
+
+                # If we got a significant response, we can stop waiting
+                if len(response) > 20:
+                    break
+
+            # Small delay to allow more data to arrive
+            time.sleep(0.2)
+            attempts += 1
+
+        # Debug log
+        self.logger.debug(f"Raw response to '{command}':\n{repr(response)}")
+
+        return response
+
+    def test_uboot_version(self):
+        """Test U-Boot with version command using multiple reads"""
+        self.logger.info("Testing U-Boot version command...")
+        
+        # Send version command
+        self.uart.write(b"version\r\n")
+        self.uart.flush()
+        
+        # The key issue: Need to wait longer and read multiple times
+        response = ""
+        for attempt in range(5):  # Try reading 5 times
+            time.sleep(1)  # Wait a full second between reads
+            
+            if self.uart.in_waiting > 0:
+                chunk = self.uart.read(self.uart.in_waiting).decode(errors='ignore')
+                response += chunk
+                self.logger.info(f"Read attempt {attempt+1}: Got {len(chunk)} bytes")
+            else:
+                self.logger.info(f"Read attempt {attempt+1}: No data available")
+        
+        # Log the final response
+        self.logger.info(f"Combined response: {repr(response)}")
+        
+        # Check response
+        if response and len(response) > 0:
+            self.logger.info("Got response from U-Boot")
+            return True
+        else:
+            self.logger.error("No response from U-Boot")
+            return False
+
     def assign_mac_address(self):
         """Handle MAC address assignment process"""
         self.logger.info("Starting MAC address assignment...")
@@ -688,15 +772,17 @@ def main():
         setup.wait_for_start()
         
         # Power on Crystal board
-        setup.power_on_crystal()
+        #setup.power_on_crystal() #REENABLE FOR CORRECT FUNCTIONING
         
         steps = [
             
-            ('Setup UART connection', setup.setup_uart_connection), 
-            ('Test connection', setup.test_connection),
-            ('Transfer files', setup.transfer_files),
-            ('Install OS', setup.install_os),
-            ('Assign MAC address', setup.assign_mac_address)
+            #('Setup UART connection', setup.setup_uart_connection), 
+            #('Test connection', setup.test_connection),
+            #('Transfer files', setup.transfer_files),
+            #('Install OS', setup.install_os),
+            #('Assign MAC address', setup.assign_mac_address)
+            ('uboot',setup.enter_uboot),
+            ('uboot-version',setup.test_uboot_version)
             
   
         ]

@@ -1,7 +1,7 @@
 # Point-to-Point Ethernet Connection Setup Guide
 ## Raspberry Pi 5 to NXP i.MX 6DL Board
 
-This guide explains how to establish a direct point-to-point Ethernet connection between a Raspberry Pi 5 and an NXP i.MX 6DL-based board using a 4-wire Ethernet cable. We'll configure both ends to use 10Mbps half-duplex mode with auto-negotiation disabled.
+This guide explains how to establish a direct point-to-point Ethernet connection between a Raspberry Pi 5 and an NXP i.MX 6DL-based board using a 4-wire Ethernet cable. We'll configure both ends to use 10Mbps half-duplex mode with auto-negotiation disabled and address common stability issues.
 
 ## Requirements
 
@@ -21,7 +21,7 @@ We'll set up a direct connection with the following parameters:
 
 ## Setup Instructions
 
-### Crystal (VitroTech)
+### NXP i.MX 6DL Board (VitroTech)
 
 1. **Check NetworkManager status**:
    ```bash
@@ -123,6 +123,55 @@ We'll set up a direct connection with the following parameters:
    sudo ethtool eth2
    ```
 
+## Stability Optimizations
+
+### Disabling Energy-Efficient Ethernet (EEE)
+
+Energy-Efficient Ethernet (IEEE 802.3az) can cause link instability, especially in direct point-to-point connections. Symptoms include frequent link flapping (interface rapidly cycling between "Link is Up" and "Link is Down" states).
+
+**To permanently disable EEE on Raspberry Pi:**
+
+1. Create a simple startup script:
+   ```bash
+   sudo nano /etc/network/if-up.d/disable-eee
+   ```
+
+2. Add the following content to the file:
+   ```bash
+   #!/bin/bash
+   
+   # Only run for eth2
+   if [ "$IFACE" = "eth2" ]; then
+       /sbin/ethtool --set-eee eth2 eee off
+   fi
+   ```
+
+3. Make the script executable:
+   ```bash
+   sudo chmod +x /etc/network/if-up.d/disable-eee
+   ```
+
+4. Test it by bringing the interface down and up:
+   ```bash
+   sudo nmcli connection down eth2-fixed
+   sudo nmcli connection up eth2-fixed
+   ```
+
+5. Verify EEE is disabled:
+   ```bash
+   sudo ethtool --show-eee eth2
+   # Should show: EEE status: disabled
+   ```
+
+This script will run automatically whenever the eth2 interface is brought up.
+
+### Additional Network Tuning (Optional)
+
+If you continue to experience stability issues, try disabling TCP offloading features:
+```bash
+sudo ethtool -K eth2 tso off gso off gro off
+```
+
 ## Troubleshooting
 
 ### Connection Issues
@@ -135,6 +184,21 @@ We'll set up a direct connection with the following parameters:
    ```bash
    nmcli connection show "connection-name" | grep auto-negotiate
    ```
+
+### Link Flapping Issues
+If you see "Link is Up"/"Link is Down" cycling in logs:
+```bash
+dmesg | grep -i eth
+```
+
+1. Disable EEE as described above
+2. Try different speed/duplex settings:
+   ```bash
+   sudo nmcli connection modify eth2-fixed 802-3-ethernet.speed 100
+   sudo nmcli connection modify eth2-fixed 802-3-ethernet.duplex full
+   ```
+3. Check cable quality and consider using shielded cables
+4. For custom 4-wire setups, consider adding 100Ω termination resistors
 
 ### Speed/Duplex Issues
 1. Verify settings applied correctly:

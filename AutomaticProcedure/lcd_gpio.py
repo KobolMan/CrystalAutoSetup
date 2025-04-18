@@ -112,7 +112,7 @@ class GPIOManager:
     def power_cycle_crystal(self):
         """Power cycle the Crystal board"""
         self.power_off_crystal()
-        #time.sleep(2)  # Wait between power cycles
+        time.sleep(2)  # Wait between power cycles
         self.power_on_crystal()
         #time.sleep(1)  # Wait for boot
         
@@ -132,13 +132,13 @@ class GPIOManager:
                     
                 # Debounce logic
                 initial_state = self.get_gpio(self.BUTTON_PIN)
-                if initial_state != 0:  # Not pressed
+                if initial_state != 1:  # Not pressed
                     return
                     
                 # Wait for debounce
                 time.sleep(0.05)
                 confirmed_state = self.get_gpio(self.BUTTON_PIN)
-                if confirmed_state == 0:  # Still pressed after debounce
+                if confirmed_state == 1:  # Still pressed after debounce
                     self.button_pressed = True
         
         # Start monitoring
