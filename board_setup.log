@@ -1,0 +1,270 @@
+2025-04-09 15:20:29,211 - INFO - Config file config.json not found, using defaults
+2025-04-09 15:20:29,212 - ERROR - Failed to initialize GPIO: 'GPIO busy'
+2025-04-09 15:20:29,213 - INFO - LCD I2C bus initialized on bus 1
+2025-04-09 15:20:29,213 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,213 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,213 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,214 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,214 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,214 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,215 - INFO - LCD display initialized
+2025-04-09 15:20:29,215 - ERROR - Hardware initialization failed
+2025-04-09 15:20:29,215 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,215 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,215 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,215 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,216 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,216 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,216 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,216 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,216 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,216 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,216 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,217 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,217 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,217 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,217 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,217 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,218 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,218 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,218 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,218 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,218 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,219 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,219 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,219 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,219 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,219 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,220 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,221 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,221 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,221 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,221 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,222 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,222 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,222 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:29,222 - INFO - Crystal board power turned ON
+2025-04-09 15:20:30,223 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,223 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,223 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,224 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,224 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,224 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,224 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,224 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,225 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,225 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,225 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,225 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,225 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,226 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,226 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,226 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,226 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:30,226 - INFO - Configuring Raspberry Pi network...
+2025-04-09 15:20:45,491 - INFO - Raspberry Pi network configured: 192.168.2.1/24
+2025-04-09 15:20:45,491 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,492 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,492 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,492 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,492 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,493 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,493 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,493 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,493 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,494 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,494 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,494 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,494 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,495 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,495 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,495 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,495 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,496 - INFO - UART opened on /dev/ttyAMA0
+2025-04-09 15:20:45,497 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,497 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,497 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,497 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,498 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,498 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,498 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,498 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,499 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,499 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,499 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,499 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,500 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,500 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,500 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,500 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,500 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:45,501 - INFO - Attempting to login as root...
+2025-04-09 15:20:51,508 - WARNING - Login attempt 1 failed, retrying...
+2025-04-09 15:20:54,512 - WARNING - Login attempt 2 failed, retrying...
+2025-04-09 15:20:57,515 - WARNING - Login attempt 3 failed, retrying...
+2025-04-09 15:20:58,515 - ERROR - Failed to login after 3 attempts
+2025-04-09 15:20:58,516 - ERROR - Failed to login to Crystal board
+2025-04-09 15:20:58,516 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,516 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,517 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,517 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,517 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,518 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,518 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,518 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,518 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,519 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,519 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,519 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,520 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,520 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,520 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,520 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,521 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,521 - INFO - UART connection closed
+2025-04-09 15:20:58,521 - INFO - Crystal board power turned ON
+2025-04-09 15:20:58,522 - ERROR - LCD write error: [Errno 121] Remote I/O error
+2025-04-09 15:20:58,523 - INFO - LCD display shut down
+2025-04-09 15:20:58,523 - INFO - GPIO resources cleaned up
+2025-04-09 15:20:58,523 - INFO - Hardware resources cleaned up
+2025-04-09 15:35:02,500 - INFO - Config file config.json not found, using defaults
+2025-04-09 15:35:02,501 - ERROR - Failed to initialize GPIO: 'GPIO busy'
+2025-04-09 15:35:02,501 - ERROR - Failed to initialize GPIO - cannot continue
+2025-04-09 15:39:05,293 - INFO - Config file config.json not found, using defaults
+2025-04-09 15:39:05,995 - ERROR - Failed to initialize GPIO: 'GPIO busy'
+2025-04-09 15:39:06,010 - ERROR - Processes using GPIO:
+2025-04-09 15:39:06,010 - ERROR - Failed to initialize GPIO - cannot continue
+2025-04-09 15:39:39,125 - INFO - Config file config.json not found, using defaults
+2025-04-09 15:39:39,827 - ERROR - Failed to initialize GPIO: 'GPIO busy'
+2025-04-09 15:39:39,838 - ERROR - Processes using GPIO:
+2025-04-09 15:39:39,838 - ERROR - Failed to initialize GPIO - cannot continue
+2025-04-09 15:42:18,171 - INFO - Config file config.json not found, using defaults
+2025-04-09 15:42:18,877 - ERROR - Failed to initialize GPIO: 'GPIO busy'
+2025-04-09 15:42:18,927 - ERROR - Processes using GPIO:
+2025-04-09 15:42:18,927 - ERROR - Failed to initialize GPIO - cannot continue
+2025-04-09 15:48:22,029 - INFO - Config file config.json not found, using defaults
+2025-04-09 15:48:22,029 - INFO - Initializing GPIO pins using direct sysfs access
+2025-04-09 15:48:23,222 - INFO - GPIO pins initialized successfully
+2025-04-09 15:48:23,252 - INFO - LCD display initialized successfully
+2025-04-09 15:48:23,260 - INFO - Crystal board power turned ON
+2025-04-09 15:48:24,260 - INFO - Configuring Raspberry Pi network...
+2025-04-09 15:48:24,307 - INFO - Raspberry Pi network configured: 192.168.2.1/24
+2025-04-09 15:48:24,308 - INFO - UART opened on /dev/ttyAMA0
+2025-04-09 15:48:24,308 - INFO - Attempting to login as root...
+2025-04-09 15:48:29,321 - WARNING - Login attempt 1 failed, retrying...
+2025-04-09 15:48:32,327 - WARNING - Login attempt 2 failed, retrying...
+2025-04-09 15:48:35,334 - ERROR - Failed to login after 3 attempts
+2025-04-09 15:48:35,335 - ERROR - Failed to login to Crystal board
+2025-04-09 15:48:35,335 - INFO - UART connection closed
+2025-04-09 15:48:35,344 - INFO - Crystal board power turned ON
+2025-04-09 15:48:35,353 - INFO - Crystal board power turned ON
+2025-04-09 15:48:35,389 - INFO - Hardware resources cleaned up
+2025-04-09 15:53:07,874 - INFO - Config file config.json not found, using defaults
+2025-04-09 15:53:07,881 - INFO - Found GPIO chip: gpiochip0
+2025-04-09 15:53:07,881 - INFO - Using GPIO chip: gpiochip0
+2025-04-09 15:53:07,885 - INFO - GPIO pins initialized successfully using libgpiod
+2025-04-09 15:53:07,916 - INFO - LCD display initialized successfully
+2025-04-09 15:53:07,918 - INFO - Crystal board power turned ON
+2025-04-09 15:53:08,918 - INFO - Configuring Raspberry Pi network...
+2025-04-09 15:53:08,920 - INFO - IP 192.168.2.1 already configured on eth0
+2025-04-09 15:53:08,921 - INFO - UART opened on /dev/ttyAMA0
+2025-04-09 15:53:08,921 - INFO - Attempting to login as root...
+2025-04-09 15:53:13,933 - WARNING - Login attempt 1 failed, retrying...
+2025-04-09 15:53:16,939 - WARNING - Login attempt 2 failed, retrying...
+2025-04-09 15:53:19,946 - ERROR - Failed to login after 3 attempts
+2025-04-09 15:53:19,946 - ERROR - Failed to login to Crystal board
+2025-04-09 15:53:19,946 - INFO - UART connection closed
+2025-04-09 15:53:19,948 - INFO - Crystal board power turned ON
+2025-04-09 15:53:19,950 - INFO - Crystal board power turned ON
+2025-04-09 15:53:19,950 - INFO - Hardware resources cleaned up
+2025-04-09 16:02:52,092 - INFO - Config file config.json not found, using defaults
+2025-04-09 16:02:52,094 - INFO - Found GPIO chip: gpiochip0
+2025-04-09 16:02:52,094 - INFO - Using GPIO chip: gpiochip0
+2025-04-09 16:02:52,097 - INFO - GPIO pins initialized successfully using libgpiod
+2025-04-09 16:02:52,127 - INFO - LCD display initialized successfully
+2025-04-09 16:02:52,129 - INFO - Crystal board power turned ON
+2025-04-09 16:02:53,129 - INFO - Configuring Raspberry Pi network...
+2025-04-09 16:02:53,131 - INFO - IP 192.168.2.1 already configured on eth0
+2025-04-09 16:02:53,132 - INFO - UART opened on /dev/ttyAMA0
+2025-04-09 16:02:53,132 - INFO - Attempting to login as root...
+2025-04-09 16:02:58,145 - WARNING - Login attempt 1 failed, retrying...
+2025-04-09 16:03:01,151 - WARNING - Login attempt 2 failed, retrying...
+2025-04-09 16:03:04,158 - ERROR - Failed to login after 3 attempts
+2025-04-09 16:03:04,158 - ERROR - Failed to login to Crystal board
+2025-04-09 16:03:04,158 - INFO - UART connection closed
+2025-04-09 16:03:04,160 - INFO - Crystal board power turned ON
+2025-04-09 16:03:04,162 - INFO - Crystal board power turned ON
+2025-04-09 16:03:04,162 - INFO - Hardware resources cleaned up
+2025-04-09 16:28:14,158 - INFO - Config file config.json not found, using defaults
+2025-04-09 16:28:14,160 - INFO - Found GPIO chip: gpiochip0
+2025-04-09 16:28:14,161 - INFO - Using GPIO chip: gpiochip0
+2025-04-09 16:28:14,163 - INFO - GPIO pins initialized successfully using libgpiod
+2025-04-09 16:28:14,193 - INFO - LCD display initialized successfully
+2025-04-09 16:28:14,195 - INFO - Crystal board power turned ON
+2025-04-09 16:28:15,195 - INFO - Configuring Raspberry Pi network...
+2025-04-09 16:28:15,197 - INFO - IP 192.168.2.1 already configured on eth0
+2025-04-09 16:28:15,198 - INFO - UART opened on /dev/ttyAMA0
+2025-04-09 16:28:15,199 - INFO - Attempting to login as root...
+2025-04-09 16:28:20,211 - WARNING - Login attempt 1 failed, retrying...
+2025-04-09 16:28:23,217 - WARNING - Login attempt 2 failed, retrying...
+2025-04-09 16:28:26,223 - ERROR - Failed to login after 3 attempts
+2025-04-09 16:28:26,223 - ERROR - Failed to login to Crystal board
+2025-04-09 16:28:26,223 - INFO - UART connection closed
+2025-04-09 16:28:26,225 - INFO - Crystal board power turned OFF
+2025-04-09 16:28:26,227 - INFO - Crystal board power turned ON
+2025-04-09 16:28:26,227 - INFO - Hardware resources cleaned up
+2025-04-09 17:08:10,403 - INFO - Config file config.json not found, using defaults
+2025-04-09 17:08:10,407 - INFO - Found GPIO chip: gpiochip0
+2025-04-09 17:08:10,408 - INFO - Using GPIO chip: gpiochip0
+2025-04-09 17:08:10,411 - INFO - Boot mode pins set HIGH for proper booting
+2025-04-09 17:08:10,411 - INFO - GPIO pins initialized successfully using libgpiod
+2025-04-09 17:08:10,429 - INFO - Found I2C devices at addresses: ['0x3e']
+2025-04-09 17:08:10,429 - WARNING - Using first available I2C device at 0x3e
+2025-04-09 17:08:11,030 - INFO - LCD display initialized successfully
+2025-04-09 17:08:11,110 - INFO - Crystal board power turned ON
+2025-04-09 17:08:12,149 - INFO - Configuring Raspberry Pi network...
+2025-04-09 17:08:12,151 - INFO - IP 192.168.2.1 already configured on eth0
+2025-04-09 17:08:12,191 - INFO - UART opened on /dev/ttyAMA0
+2025-04-09 17:08:12,231 - INFO - Attempting to login as root...
+2025-04-09 17:08:19,232 - WARNING - Didn't find a recognizable prompt. Got: => 
+=> 
+=> 
+=> 
+=> 
+=> 
+=> 
+=> 
+=> 
+=> 
+=> 
+2025-04-09 17:08:19,233 - WARNING - Login attempt 1 failed, retrying...
+2025-04-09 17:08:22,233 - WARNING - Login attempt 2 failed, retrying...
+2025-04-09 17:08:25,234 - ERROR - Failed to login after 3 attempts
+2025-04-09 17:08:25,234 - ERROR - Failed to login to Crystal board
+2025-04-09 17:08:25,274 - INFO - UART connection closed
+2025-04-09 17:08:25,276 - INFO - Crystal board power turned OFF
+2025-04-09 17:08:25,286 - INFO - Turning off Crystal board before exit...
+2025-04-09 17:08:25,288 - INFO - Crystal board power turned OFF
+2025-04-09 17:08:25,288 - INFO - Releasing GPIO pins...
+2025-04-09 17:08:25,290 - INFO - Hardware resources cleaned up
+2025-04-09 17:18:52,764 - INFO - Config file config.json not found, using defaults
+2025-04-09 17:18:52,765 - INFO - Found GPIO chip: gpiochip0
+2025-04-09 17:18:52,765 - INFO - Using GPIO chip: gpiochip0
+2025-04-09 17:18:52,768 - INFO - Boot mode pins set HIGH for proper booting
+2025-04-09 17:18:52,768 - INFO - GPIO pins initialized successfully using libgpiod
+2025-04-09 17:18:52,862 - INFO - LCD display initialized successfully
+2025-04-09 17:18:52,942 - INFO - Crystal board power turned ON
+2025-04-09 17:18:53,981 - INFO - Configuring Raspberry Pi network...
+2025-04-09 17:18:53,983 - INFO - IP 192.168.2.1 already configured on eth0
+2025-04-09 17:18:54,023 - INFO - UART opened on /dev/ttyAMA0
+2025-04-09 17:18:54,062 - INFO - Attempting to login as root...
+2025-04-09 17:18:55,062 - INFO - Already at U-Boot prompt, no login needed
+2025-04-09 17:18:55,102 - INFO - Configuring Crystal board network...
+2025-04-09 17:19:01,152 - ERROR - IP 192.168.2.2 not configured on Crystal
+2025-04-09 17:19:01,152 - ERROR - Failed to configure Crystal network
+2025-04-09 17:19:01,192 - INFO - UART connection closed
+2025-04-09 17:19:01,194 - INFO - Crystal board power turned OFF
+2025-04-09 17:19:01,197 - INFO - Turning off Crystal board before exit...
+2025-04-09 17:19:01,199 - INFO - Crystal board power turned OFF
+2025-04-09 17:19:01,199 - INFO - Releasing GPIO pins...
+2025-04-09 17:19:01,201 - INFO - Hardware resources cleaned up

@@ -2,4 +2,10 @@ vitro-gateway-imx6dl-crystal-emmc-3.3.1-debug.wic.gz
 vitro-gateway-imx6dl-crystal-emmc-3.3.1-debug.wic.bmap
 vitrotv_root_rsa
 boardInfo.txt
+/crystal-setup/
+part_aa
+part_ab
+part_ac
+part_ad
+part_ae
 __pycache__/

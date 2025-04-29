@@ -562,23 +562,60 @@ class BoardSetup:
         return True
 
     def get_serial_number(self):
-        """Get serial number from the board through UART"""
+        """Get serial number from the board through UART using ecc_toolkit"""
         self.lcd.clear()
         self.lcd.write("Getting Serial", 0)
         self.lcd.write("Number...", 1)
         
-        response = self.send_uart_command("cat /proc/cpuinfo | grep Serial")
-        print(response) # Debug log
-        if response:
-            serial = response.strip().split(':')[1].strip()
-            self.serial_number = serial
-            self.logger.info(f"Found serial number: {serial}")
-            return serial
+        # Ensure we're in Linux mode and logged in
+        if not self.attempt_login():
+            self.logger.error("Cannot get serial number - not logged in")
+            return None
         
+        # Clear buffers for a clean start
+        self.uart.reset_input_buffer()
+        self.uart.reset_output_buffer()
+        
+        # Send the command with proper termination
+        self.logger.info("Using ecc_toolkit to get serial number...")
+        self.uart.write(b"ecc_toolkit get_serial\r\n")
+        self.uart.flush()
+        
+        # Wait longer for the response
+        time.sleep(3)
+        
+        # Read response in chunks to ensure we get everything
+        response = ""
+        start_time = time.time()
+        while (time.time() - start_time) < 5:  # Wait up to 5 seconds
+            if self.uart.in_waiting > 0:
+                chunk = self.uart.read(self.uart.in_waiting).decode(errors='replace')
+                response += chunk
+            # If we have a substantial response, break early
+            if len(response.strip()) > 10:
+                break
+            time.sleep(0.5)
+        
+        # Log the complete response for debugging
+        self.logger.debug(f"Raw response: {repr(response)}")
+        
+        # Parse the response line by line to find the serial number
+        lines = response.strip().split('\n')
+        for line in lines:
+            # Look for a line that contains only hexadecimal characters (and is long enough)
+            clean_line = line.strip()
+            if len(clean_line) >= 16 and all(c in '0123456789ABCDEFabcdef' for c in clean_line):
+                self.serial_number = clean_line
+                self.logger.info(f"Found serial number: {clean_line}")
+                return clean_line
+        
+        self.logger.error("Could not parse serial number from ecc_toolkit output")
         self.lcd.clear()
         self.lcd.write("Serial Number", 0)
         self.lcd.write("Not Found!", 1)
         return None
+        
+
 
     def send_uboot_command(self, command, wait_time=1):
         """
@@ -668,81 +705,86 @@ class BoardSetup:
         self.lcd.write("Assigning MAC", 0)
         self.lcd.write("Address...", 1)
 
-        # First enter U-Boot mode
+        # Setup UART connection if not already done
+        if self.uart is None or not self.uart.is_open:
+            if not self.setup_uart_connection():
+                self.logger.error("Cannot assign MAC - UART connection failed")
+                return False
+
+        # Get serial number FIRST while in Linux mode
+        self.serial_number = self.get_serial_number()
+        if not self.serial_number:
+            self.logger.error("Failed to get serial number")
+            return False
+
+        # Create UARTFlasher with existing UART
+        from uart_flashing import UARTFlasher
+        flasher = UARTFlasher(existing_uart=self.uart, existing_logger=self.logger)
+
+        # Check if this serial already has a MAC in database
+        existing_mac = flasher.mac_db.get_mac_for_serial(self.serial_number)
+        if existing_mac:
+            self.logger.info(f"Board already has MAC {existing_mac}")
+            self.lcd.clear()
+            self.lcd.write("Board Already Has", 0)
+            self.lcd.write(f"MAC: {existing_mac}", 1)
+            time.sleep(2)
+            return True
+
+        # Get available MAC address
+        mac_addr = flasher.mac_db.get_available_mac()
+        if not mac_addr:
+            self.logger.error("No available MAC addresses")
+            self.lcd.clear()
+            self.lcd.write("No Available", 0)
+            self.lcd.write("MAC Addresses!", 1)
+            return False
+
+        # Display MAC address on LCD
+        self.lcd.clear()
+        self.lcd.write("Using MAC:", 0)
+        self.lcd.write(f"{mac_addr}", 1)
+
+        # Now enter U-Boot mode
         if not self.enter_uboot():
             self.logger.error("Cannot assign MAC - failed to enter U-Boot")
             return False
 
-        # Import UARTFlasher at runtime to avoid circular imports
-        from uart_flashing import UARTFlasher
+        # Reset UART buffers after U-Boot entry
+        self.uart.reset_input_buffer()
+        self.uart.reset_output_buffer()
 
-        try:
-            # Get serial number if not already available
-            if not self.serial_number:
-                self.serial_number = self.get_serial_number()
-                if not self.serial_number:
-                    self.logger.error("Failed to get serial number")
-                    return False
-
-            # Create a UARTFlasher with our existing UART connection and logger
-            flasher = UARTFlasher(existing_uart=self.uart, existing_logger=self.logger)
-            
-            # Since we're using the existing UART, we don't need to call setup_uart()
-            # but we should reset buffers to ensure clean state
-            self.uart.reset_input_buffer()
-            self.uart.reset_output_buffer()
-            
-            # Get available MAC address
-            mac_addr = flasher.mac_db.get_available_mac()
-            if not mac_addr:
-                self.logger.error("No available MAC addresses")
-                self.lcd.clear()
-                self.lcd.write("No Available", 0)
-                self.lcd.write("MAC Addresses!", 1)
-                return False
-            
-            # Display MAC address on LCD
+        # Wait for U-Boot prompt
+        if flasher.wait_for_boot_prompt():
+            self.logger.info("Successfully confirmed U-Boot prompt")
             self.lcd.clear()
-            self.lcd.write("Using MAC:", 0)
-            self.lcd.write(f"{mac_addr}", 1)
-            
-            # Follow the boot sequence but without closing our UART
-            if flasher.wait_for_boot_prompt():
-                self.logger.info("Successfully entered U-Boot")
-                self.lcd.clear()
-                self.lcd.write("Writing MAC...", 0)
-                
-                if flasher.write_mac_address(mac_addr):
-                    if flasher.mac_db.mark_mac_as_used(mac_addr, self.serial_number):
-                        self.logger.info(f"MAC address {mac_addr} successfully assigned to {self.serial_number}")
-                        self.lcd.clear()
-                        self.lcd.write("MAC Assignment", 0)
-                        self.lcd.write("Complete!", 1)
-                        time.sleep(2)
-                        return True
-                    else:
-                        self.logger.error("Failed to mark MAC as used in database")
-                        self.lcd.clear()
-                        self.lcd.write("Database Update", 0)
-                        self.lcd.write("Failed!", 1)
-                else:
-                    self.logger.error("Failed to write MAC address to the board")
+            self.lcd.write("Writing MAC...", 0)
+
+            if flasher.write_mac_address(mac_addr):
+                if flasher.mac_db.mark_mac_as_used(mac_addr, self.serial_number):
+                    self.logger.info(f"MAC address {mac_addr} successfully assigned to {self.serial_number}")
                     self.lcd.clear()
-                    self.lcd.write("MAC Writing", 0)
+                    self.lcd.write("MAC Assignment", 0)
+                    self.lcd.write("Complete!", 1)
+                    time.sleep(2)
+                    return True
+                else:
+                    self.logger.error("Failed to mark MAC as used in database")
+                    self.lcd.clear()
+                    self.lcd.write("Database Update", 0)
                     self.lcd.write("Failed!", 1)
             else:
-                self.logger.error("Failed to reach boot prompt")
+                self.logger.error("Failed to write MAC address to the board")
                 self.lcd.clear()
-                self.lcd.write("Boot Prompt", 0)
-                self.lcd.write("Not Found!", 1)
-            
-            return False
-        except Exception as e:
-            self.logger.error(f"MAC address assignment failed: {e}")
+                self.lcd.write("MAC Writing", 0)
+                self.lcd.write("Failed!", 1)
+        else:
+            self.logger.error("Failed to reach boot prompt")
             self.lcd.clear()
-            self.lcd.write("MAC Assignment", 0)
-            self.lcd.write("Error!", 1)
-            return False
+            self.lcd.write("Boot Prompt", 0)
+            self.lcd.write("Not Found!", 1)
+
+        return False
 
     def cleanup(self):
         """Cleanup resources"""
@@ -773,7 +815,7 @@ def main():
         setup.wait_for_start()
         
         # Power on Crystal board
-        #setup.power_on_crystal() #REENABLE FOR CORRECT FUNCTIONING
+        setup.power_on_crystal() #REENABLE FOR CORRECT FUNCTIONING
         
         steps = [
             
