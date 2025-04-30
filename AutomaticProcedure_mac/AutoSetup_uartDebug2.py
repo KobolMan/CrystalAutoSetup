@@ -387,38 +387,104 @@ class BoardSetup:
             return False
 
     def test_connection(self):
-        """Test network connection between Raspberry Pi and Crystal"""
+        """Test network connection between Raspberry Pi and Crystal with packet loss analysis"""
         self.logger.info("Testing network connection...")
         self.lcd.clear()
         self.lcd.write("Testing", 0)
         self.lcd.write("Connection...", 1)
-
+    
         # Wait for everything to stabilize
         self.logger.info("Waiting for network to fully stabilize...")
-        time.sleep(20)
-
-        # Final ARP cache clearing
-        #self.run_command(f"sudo ip neigh flush dev {self.raspi_interface}")
-
-        # Simple ping test from Pi to Crystal
-        self.logger.info("Pinging Crystal board...")
-        success, output = self.run_command(f"ping -c 3 -W 10 {self.crystal_ip}")
-
-        if not success:
-            # One retry with longer timeout
-            self.logger.info("First ping failed, retrying once...")
-            time.sleep(2)
-            success, output = self.run_command(f"ping -c 3 -W 10 {self.crystal_ip}")
-
-        if not success:
-            self.logger.error(f"Failed to ping Crystal: {output}")
+        time.sleep(15)
+        
+        # Function to analyze ping results
+        def analyze_ping_results(output):
+            try:
+                # Extract packet statistics from ping output
+                if "packet loss" in output:
+                    loss_line = next((line for line in output.split('\n') if "packet loss" in line), "")
+                    loss_percentage = float(loss_line.split('%')[0].split(' ')[-1])
+                    self.logger.info(f"Packet loss: {loss_percentage}%")
+                    return loss_percentage
+                return 100  # Assume 100% loss if we can't parse the output
+            except Exception as e:
+                self.logger.error(f"Error parsing ping results: {e}")
+                return 100  # Assume 100% loss on parsing error
+        
+        # Function to reinitialize the network interface
+        def reinitialize_interface():
+            self.logger.info(f"Reinitializing network interface {self.raspi_interface}...")
             self.lcd.clear()
-            self.lcd.write("Connection Test", 0)
-            self.lcd.write("Failed!", 1)
-            return False
-
-        self.logger.info("Network connection test successful")
-        return True
+            self.lcd.write("Reinitializing", 0)
+            self.lcd.write("Network...", 1)
+            
+            # Bring interface down
+            down_success, _ = self.run_command(f"sudo ip link set {self.raspi_interface} down")
+            if not down_success:
+                self.logger.error("Failed to bring interface down")
+                return False
+            
+            # Wait for interface to settle
+            time.sleep(2)
+            
+            # Bring interface up
+            up_success, _ = self.run_command(f"sudo ip link set {self.raspi_interface} up")
+            if not up_success:
+                self.logger.error("Failed to bring interface up")
+                return False
+            
+            # Wait for interface to initialize
+            self.logger.info("Waiting for interface to initialize...")
+            time.sleep(5)
+            return True
+        
+        # Try connection test up to 3 times
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            self.logger.info(f"Connection test attempt {attempt}/{max_attempts}")
+            
+            # Send 20 packets for reliable packet loss measurement
+            self.logger.info(f"Pinging Crystal board with 20 packets...")
+            success, output = self.run_command(f"ping -c 20 -W 2 {self.crystal_ip}")
+            
+            if not success:
+                self.logger.error(f"Ping command failed completely: {output}")
+                if attempt < max_attempts:
+                    self.logger.info("Reinitializing network and retrying...")
+                    if not reinitialize_interface():
+                        break
+                    continue
+                else:
+                    self.lcd.clear()
+                    self.lcd.write("Connection Test", 0)
+                    self.lcd.write("Failed!", 1)
+                    return False
+            
+            # Analyze packet loss
+            packet_loss = analyze_ping_results(output)
+            
+            # If packet loss is less than 3%, connection is good
+            if packet_loss < 3:
+                self.logger.info(f"Network connection test successful (packet loss: {packet_loss}%)")
+                return True
+            
+            # If packet loss is too high, reinitialize and retry
+            self.logger.warning(f"High packet loss ({packet_loss}%), reinitializing connection...")
+            if attempt < max_attempts:
+                if not reinitialize_interface():
+                    break
+            else:
+                self.logger.error("Max retry attempts reached with high packet loss")
+                self.lcd.clear()
+                self.lcd.write("Network Test", 0)
+                self.lcd.write(f"Fail: {packet_loss}% loss", 1)
+                return False
+        
+        self.logger.error("All connection tests failed")
+        self.lcd.clear()
+        self.lcd.write("Connection Test", 0)
+        self.lcd.write("Failed!", 1)
+        return False
 
     def check_ip_exists(self, ip, interface):
         """Check if an IP address is already assigned to the interface"""
