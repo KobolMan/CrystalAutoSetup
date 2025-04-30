@@ -75,6 +75,9 @@ class BoardSetup:
         # Add a flag to track failure status
         self._failed = False
 
+        # Initialize the mac_newly_assigned flag
+        self.mac_newly_assigned = False
+
     def debug_uart_log(self, direction, message, data):
         """Log UART communication when debug is enabled"""
         if not self.debug_uart:
@@ -162,10 +165,12 @@ class BoardSetup:
         self.lcd.write("Boot completion", 1)
 
         max_wait_time = 120  # Maximum 2 minutes to wait
-        start_time = time.time()
+        #start_time = time.time()
 
         # Clear any existing data in the buffer
         self.uart.reset_input_buffer()
+
+        time.sleep(10) #Give time for the board to start initialization
 
         while (time.time() - start_time) < max_wait_time:
             # Send a newline to prompt output
@@ -345,7 +350,7 @@ class BoardSetup:
 
         # Wait for everything to stabilize
         self.logger.info("Waiting for network to fully stabilize...")
-        time.sleep(15)
+        time.sleep(20)
 
         # Final ARP cache clearing
         #self.run_command(f"sudo ip neigh flush dev {self.raspi_interface}")
@@ -474,17 +479,20 @@ class BoardSetup:
                     self.logger.error(f"Failed to transfer {filename}: {output}")
                     return False
             else:
-                # For large files, use time-based progress estimation
+                # For large files, use time-based progress estimation with timeout
                 self.lcd.clear()
                 self.lcd.write(f"Sending {int(file_size)}MB", 0)
                 self.lcd.write("Progress: 0%", 1)
 
                 self.logger.info(f"\nStarting transfer of {filename} ({file_size:.2f} MB)...")
 
+                # Add a 10-minute (600 seconds) timeout for large file transfers
+                transfer_timeout = 600  # 10 minutes in seconds
+
                 # Based on your actual observed transfer rate (approx 1.1 MB/s)
                 # Add a 10% buffer to make sure we don't overestimate
                 transfer_rate = 1.0  # MB/s
-                expected_seconds = file_size / transfer_rate
+                expected_seconds = min(file_size / transfer_rate, transfer_timeout)
 
                 # Create SCP command
                 scp_command = f"scp -O -v -i {self.key_file} -o StrictHostKeyChecking=no {filepath} {self.remote_user}@{self.crystal_ip}:{self.remote_path}"
@@ -500,22 +508,50 @@ class BoardSetup:
                 # We don't redefine transfer_start here anymore
                 last_percentage = 0
 
+                # Add timeout tracking
+                transfer_timed_out = False
+
                 # Simple progress loop that updates every 3 seconds
                 while process.poll() is None:
                     current_time = time.time()
                     elapsed = current_time - transfer_start
 
+                    # Check if we've exceeded our timeout
+                    if elapsed > transfer_timeout:
+                        self.logger.error(f"Transfer of {filename} timed out after {transfer_timeout} seconds")
+                        self.lcd.clear()
+                        self.lcd.write("Transfer Timeout", 0)
+                        self.lcd.write("Terminating...", 1)
+
+                        # Terminate the process
+                        process.terminate()
+                        try:
+                            process.wait(timeout=5)  # Give it 5 seconds to terminate gracefully
+                        except subprocess.TimeoutExpired:
+                            process.kill()  # Force kill if it doesn't terminate
+
+                        transfer_timed_out = True
+                        break
+
                     # Calculate percentage based on elapsed time and expected duration
                     # Cap at 95% until complete
                     percentage = min(95, int((elapsed / expected_seconds) * 100))
 
-                    # Update LCD if percentage has changed
-                    if percentage > last_percentage:
-                        self.lcd.write(f"Progress: {percentage}%", 1)
-                        self.logger.info(f"Transfer progress: {percentage}%")
-                        last_percentage = percentage
+                    # Only update in 5% increments - round down to nearest 5%
+                    display_percentage = (percentage // 5) * 5
+
+                    # Update LCD if percentage has changed by at least 5%
+                    if display_percentage > last_percentage:
+                        self.lcd.write(f"Progress: {display_percentage}%", 1)
+                        self.logger.info(f"Transfer progress: {display_percentage}%")
+                        last_percentage = display_percentage
 
                     time.sleep(3)  # Check every 3 seconds
+
+                # Handle timeout case
+                if transfer_timed_out:
+                    self.logger.error(f"Transfer of {filename} failed due to timeout")
+                    return False
 
                 # Check if process completed successfully
                 returncode = process.poll()
@@ -554,7 +590,7 @@ class BoardSetup:
 
         self.logger.info("All files transferred successfully")
         return True
-
+    
     def install_os(self):
         """Install OS using bmaptool and configure the system"""
         self.logger.info("Starting OS installation and configuration...")
@@ -794,6 +830,8 @@ class BoardSetup:
             time.sleep(2)
             # Store MAC address as instance variable for label printing
             self.mac_addr = existing_mac
+            # Set flag to indicate MAC was already assigned
+            self.mac_newly_assigned = False
             return True
 
         # Get available MAC address
@@ -830,6 +868,8 @@ class BoardSetup:
                     self.logger.info(f"MAC address {mac_addr} successfully assigned to {self.serial_number}")
                     # Store MAC address as instance variable for label printing
                     self.mac_addr = mac_addr
+                    # Set flag to indicate MAC was newly assigned
+                    self.mac_newly_assigned = True
                     self.lcd.clear()
                     self.lcd.write("MAC Assignment", 0)
                     self.lcd.write("Complete!", 1)
@@ -941,6 +981,15 @@ class BoardSetup:
 
     def print_board_label(self):
         """Print a label with the board information after all steps are complete"""
+        # Check if we should print a label (only for newly assigned MACs)
+        if not hasattr(self, 'mac_newly_assigned') or not self.mac_newly_assigned:
+            self.logger.info("Skipping label printing - MAC was already assigned")
+            self.lcd.clear()
+            self.lcd.write("Label Printing", 0)
+            self.lcd.write("Skipped", 1)
+            time.sleep(2)
+            return True
+
         if hasattr(self, 'mac_addr') and hasattr(self, 'serial_number'):
             self.logger.info("Starting label printing process...")
             return self.print_label(self.mac_addr, self.serial_number)
