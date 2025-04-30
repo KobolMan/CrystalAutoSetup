@@ -211,26 +211,71 @@ class BoardSetup:
         return True
 
     def setup_uart_connection(self):
-        """Setup UART connection to Crystal board"""
+        """Setup UART connection to Crystal board and verify it's booting properly"""
         self.logger.info("Setting up UART connection...")
         self.lcd.clear()
         self.lcd.write("Setting up", 0)
         self.lcd.write("UART...", 1)
-        
+
         try:
+            # Initialize the serial connection
             self.uart = serial.Serial(
                 port=self.uart_device,
                 baudrate=self.uart_baudrate,
                 timeout=self.uart_timeout
             )
-            # Just send a newline without trying to interrupt boot
-            #self.uart.write(b"\n")
-            time.sleep(0.5)
+
+            # Clear any buffer data
             self.uart.reset_input_buffer()
             self.uart.reset_output_buffer()
-            
-            self.logger.info("UART connection established")
-            return True
+
+            # Passively listen for boot messages without sending anything
+            self.logger.info("Listening for boot messages without disturbing boot process...")
+
+            # Set a timeout for verification
+            max_wait_time = 25  # 1 minute to detect boot messages
+            start_time = time.time()
+            boot_verified = False
+
+            while (time.time() - start_time) < max_wait_time:
+                # Check if there's data in the buffer
+                if self.uart.in_waiting > 0:
+                    # Read what's in the buffer without clearing it
+                    response = self.uart.read(self.uart.in_waiting).decode(errors='replace')
+
+                    # Log the received data when in debug mode
+                    if self.debug_uart:
+                        self.debug_uart_log("received", "Boot data", response)
+
+                    # Check for boot messages that indicate the board is functioning
+                    boot_indicators = [
+                        "Welcome to vitro",
+                        "Starting kernel",
+                        "systemd[1]",
+                        "login:",
+                        "# ",
+                        "$ "
+                    ]
+
+                    if any(indicator in response for indicator in boot_indicators):
+                        indicator_found = next((ind for ind in boot_indicators if ind in response), "boot message")
+                        self.logger.info(f"Boot verification successful: '{indicator_found}' detected")
+                        boot_verified = True
+                        break
+                    
+                # Small delay to prevent CPU thrashing while waiting for data
+                time.sleep(0.5)
+
+            if boot_verified:
+                self.logger.info("UART connection established and board boot verified")
+                return True
+            else:
+                self.logger.error("Board boot verification failed - no boot messages detected")
+                self.lcd.clear()
+                self.lcd.write("Boot Verification", 0)
+                self.lcd.write("Failed!", 1)
+                return False
+
         except serial.SerialException as e:
             self.logger.error(f"Failed to setup UART connection: {e}")
             self.lcd.clear()
