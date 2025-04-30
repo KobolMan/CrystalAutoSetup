@@ -46,6 +46,9 @@ class GPIOManager:
         self.CRYSTAL_POWER_PIN = 23
         self.BOOT_CONTROL_PIN1 = 12
         self.BOOT_CONTROL_PIN2 = 26
+        # Add LED pin definitions
+        self.GREEN_LED_PIN = 24
+        self.RED_LED_PIN = 25
         
         # Button debounce state
         self.button_pressed = False
@@ -88,13 +91,45 @@ class GPIOManager:
         """Configure all output pins"""
         try:
             # Configure all output pins with initial low state
-            for pin in [self.CRYSTAL_POWER_PIN, self.BOOT_CONTROL_PIN1, self.BOOT_CONTROL_PIN2]:
+            for pin in [self.CRYSTAL_POWER_PIN, self.BOOT_CONTROL_PIN1, self.BOOT_CONTROL_PIN2, 
+                        self.GREEN_LED_PIN, self.RED_LED_PIN]:
                 subprocess.run(['gpioset', 'gpiochip0', f'{pin}=0'], check=True)
             return True
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Failed to setup output pins: {e}")
             return False
-            
+
+    # Add LED control methods
+    def green_led_on(self):
+        """Turn on green LED"""
+        return self.set_gpio(self.GREEN_LED_PIN, 1)
+    
+    def green_led_off(self):
+        """Turn off green LED"""
+        return self.set_gpio(self.GREEN_LED_PIN, 0)
+    
+    def red_led_on(self):
+        """Turn on red LED"""
+        return self.set_gpio(self.RED_LED_PIN, 1)
+    
+    def red_led_off(self):
+        """Turn off red LED"""
+        return self.set_gpio(self.RED_LED_PIN, 0)
+    
+    def blink_red_led(self, times=5, interval=0.2):
+        """Blink red LED specified number of times"""
+        try:
+            for i in range(times):
+                self.red_led_on()
+                time.sleep(interval)
+                self.red_led_off()
+                if i < times - 1:  # Don't sleep after the last blink
+                    time.sleep(interval)
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to blink red LED: {e}")
+            return False
+
     def power_on_crystal(self):
         """Power on the Crystal board and enable boot controls"""
         self.set_gpio(self.CRYSTAL_POWER_PIN, 1)

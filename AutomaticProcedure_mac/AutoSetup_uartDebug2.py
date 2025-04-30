@@ -72,6 +72,9 @@ class BoardSetup:
         # Serial number storage
         self.serial_number = None
 
+        # Add a flag to track failure status
+        self._failed = False
+
     def debug_uart_log(self, direction, message, data):
         """Log UART communication when debug is enabled"""
         if not self.debug_uart:
@@ -615,8 +618,6 @@ class BoardSetup:
         self.lcd.write("Not Found!", 1)
         return None
         
-
-
     def send_uboot_command(self, command, wait_time=1):
         """
         Send a command to U-Boot and read the response.
@@ -729,6 +730,8 @@ class BoardSetup:
             self.lcd.write("Board Already Has", 0)
             self.lcd.write(f"MAC: {existing_mac}", 1)
             time.sleep(2)
+            # Store MAC address as instance variable for label printing
+            self.mac_addr = existing_mac
             return True
 
         # Get available MAC address
@@ -763,6 +766,8 @@ class BoardSetup:
             if flasher.write_mac_address(mac_addr):
                 if flasher.mac_db.mark_mac_as_used(mac_addr, self.serial_number):
                     self.logger.info(f"MAC address {mac_addr} successfully assigned to {self.serial_number}")
+                    # Store MAC address as instance variable for label printing
+                    self.mac_addr = mac_addr
                     self.lcd.clear()
                     self.lcd.write("MAC Assignment", 0)
                     self.lcd.write("Complete!", 1)
@@ -786,21 +791,132 @@ class BoardSetup:
 
         return False
 
+    def print_label(self, mac_address, ecc_id):
+        """Print a label with the board's information"""
+        self.logger.info("Preparing to print label...")
+        self.lcd.clear()
+        self.lcd.write("Preparing", 0)
+        self.lcd.write("Board Label...", 1)
+
+        # Get the directory where the current script is located
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Setup paths for label files
+        label_template = os.path.join(self.base_dir, "labels/Label-large-crystal.zpl")
+        label_output = os.path.join(self.base_dir, "labels/output-label.zpl")
+
+        # Check if the template file exists
+        if not os.path.exists(label_template):
+            self.logger.error(f"Label template file not found: {label_template}")
+            self.lcd.clear()
+            self.lcd.write("Label Template", 0)
+            self.lcd.write("Not Found!", 1)
+            return False
+
+        # Generate a unique serial number for the board (CN057BQ + 8 random digits)
+        # This is separate from the ECC ID
+        board_serial = "CN057BQ0123456789" #+ ''.join(random.choices('0123456789', k=8)) ##FIX THIS WITH PROPER BOARD_SERIAL
+
+        # Run the board-info-update.py script to generate the label
+        update_cmd = f"python {os.path.join(script_dir, 'board-info-update.py')} {label_template} {label_output} --mac \"{mac_address}\" --ecc_id \"{ecc_id}\" --serial \"{board_serial}\""
+
+        success, output = self.run_command(update_cmd)
+        if not success:
+            self.logger.error(f"Failed to update label: {output}")
+            self.lcd.clear()
+            self.lcd.write("Label Update", 0)
+            self.lcd.write("Failed!", 1)
+            return False
+
+        return self.try_print_label(label_output)
+
+    def try_print_label(self, label_file):
+        """Try to print the label and handle retry if needed"""
+        max_attempts = 3
+        attempt = 0
+
+        while attempt < max_attempts:
+            attempt += 1
+            self.lcd.clear()
+            self.lcd.write("Printing", 0)
+            self.lcd.write(f"Label... ({attempt}/{max_attempts})", 1)
+
+            # Send the label to the printer
+            print_cmd = f"cat {label_file} > /dev/usb/lp0"
+            success, output = self.run_command(print_cmd)
+
+            if success:
+                self.logger.info("Label printed successfully")
+                self.lcd.clear()
+                self.lcd.write("Label Printed", 0)
+                self.lcd.write("Successfully", 1)
+                time.sleep(2)
+                return True
+
+            # Print failed, ask user to check printer and try again
+            self.logger.error(f"Failed to print label (attempt {attempt}/{max_attempts}): {output}")
+
+            if attempt >= max_attempts:
+                self.lcd.clear()
+                self.lcd.write("Label Printing", 0)
+                self.lcd.write("Failed!", 1)
+                time.sleep(2)
+                return False
+
+            # Prompt user to check printer and press button to retry
+            self.lcd.clear()
+            self.lcd.write("Check Printer", 0)
+            self.lcd.write("Press button to retry", 1)
+
+            # Wait for button press if button is enabled
+            if self.use_button:
+                self.logger.info("Waiting for button press to retry printing...")
+                self.gpio_mgr.wait_for_button_press()
+            else:
+                # If button is disabled, wait a few seconds and retry automatically
+                self.logger.info("Button disabled, waiting 5 seconds before retrying...")
+                time.sleep(5)
+
+    def print_board_label(self):
+        """Print a label with the board information after all steps are complete"""
+        if hasattr(self, 'mac_addr') and hasattr(self, 'serial_number'):
+            self.logger.info("Starting label printing process...")
+            return self.print_label(self.mac_addr, self.serial_number)
+        else:
+            self.logger.error("Cannot print label - MAC address or serial number missing")
+            self.lcd.clear()
+            self.lcd.write("Label Printing", 0)
+            self.lcd.write("Error: Missing Info", 1)
+            return False
+
     def cleanup(self):
         """Cleanup resources"""
         if hasattr(self, 'uart') and self.uart and self.uart.is_open:
             self.uart.close()
             self.logger.info("UART connection closed")
-        
+
         # Power off Crystal when done
         if hasattr(self, 'gpio_mgr'):
             self.gpio_mgr.power_off_crystal()
-        
-        # Final LCD message
-        if hasattr(self, 'lcd'):
-            self.lcd.clear()
-            self.lcd.write("Setup Complete", 0)
-            self.lcd.write("System Ready", 1)
+
+            # Handle LEDs based on success/failure status
+            if not hasattr(self, '_failed') or not self._failed:
+                # Success - green LED on, red LED off
+                self.gpio_mgr.green_led_on()
+                self.gpio_mgr.red_led_off()
+
+                # Success LCD message
+                if hasattr(self, 'lcd'):
+                    self.lcd.clear()
+                    self.lcd.write("Setup Complete", 0)
+                    self.lcd.write("System Ready", 1)
+            else:
+                # Failure - keep red LED on, green LED off
+                self.gpio_mgr.red_led_on()  # Keep red LED ON for failure (not just blinking)
+                self.gpio_mgr.green_led_off()
+
+                # We don't want to overwrite the error message that was already displayed
+                # LCD message should already show the specific error
 
 def main():
     parser = argparse.ArgumentParser(description='Board Setup and MAC Assignment Tool')
@@ -808,54 +924,130 @@ def main():
     parser.add_argument('--debug-uart', action='store_true', help='Enable UART debugging and interactive mode')
     args = parser.parse_args()
     
+    # Create the setup object outside the retry loop so we don't reinitialize everything
     setup = BoardSetup(use_button=not args.no_button, debug_uart=args.debug_uart)
     
     try:
-        # Wait for button press if enabled
+        # Wait for button press if enabled - this happens only once at the start
         setup.wait_for_start()
         
-        # Power on Crystal board
-        setup.power_on_crystal() #REENABLE FOR CORRECT FUNCTIONING
-        
-        steps = [
+        retry = True
+        while retry:
+            retry = False  # Will be set to True if we need to retry
+            setup._failed = False  # Reset failure flag on each attempt
             
-            #('Setup UART connection', setup.setup_uart_connection), 
-            #('Test connection', setup.test_connection),
-            #('Transfer files', setup.transfer_files),
-            #('Install OS', setup.install_os),
-            ('Assign MAC address', setup.assign_mac_address)
-            #('uboot',setup.enter_uboot),
-            #('uboot-version',setup.test_uboot_version)
-            
-  
-        ]
-        
-        for step_name, step_func in steps:
-            setup.logger.info(f"Starting: {step_name}")
-            if not step_func():
-                setup.logger.error(f"Failed at: {step_name}")
-                setup.gpio_mgr.power_off_crystal()  # Power off the board on failure
+            try:
+                # Power on Crystal board
+                setup.power_on_crystal()
+                
+                steps = [
+                    ('Setup UART connection', setup.setup_uart_connection), 
+                    ('Test connection', setup.test_connection),
+                    ('Transfer files', setup.transfer_files),
+                    ('Install OS', setup.install_os),
+                    ('Assign MAC address', setup.assign_mac_address),
+                    ('Print Board Label', setup.print_board_label)
+                ]
+                
+                for step_name, step_func in steps:
+                    setup.logger.info(f"Starting: {step_name}")
+                    if not step_func():
+                        setup.logger.error(f"Failed at: {step_name}")
+                        setup._failed = True  # Set the failure flag
+                        
+                        # Blink the red LED to indicate failure
+                        setup.gpio_mgr.blink_red_led(times=5, interval=0.2)
+                        setup.gpio_mgr.red_led_on()  # Then keep it on
+                        
+                        setup.gpio_mgr.power_off_crystal()  # Power off the board on failure
+                        setup.lcd.clear()
+                        setup.lcd.write("Setup Failed", 0)
+                        setup.lcd.write(f"At: {step_name[:16]}", 1)
+                        
+                        # Ask user to retry
+                        time.sleep(3)  # Show error message for 3 seconds
+                        
+                        # Only prompt for retry if button use is enabled
+                        if setup.use_button:
+                            setup.lcd.clear()
+                            setup.lcd.write("Press button", 0)
+                            setup.lcd.write("to retry", 1)
+                            
+                            # Wait for button press
+                            setup.logger.info("Waiting for button press to retry...")
+                            setup.gpio_mgr.wait_for_button_press()
+                            retry = True
+                        else:
+                            setup.logger.info("Button disabled, cannot prompt for retry")
+                            # Exit if we can't retry
+                            sys.exit(1)
+                        
+                        # Break out of the step loop
+                        break
+                    
+                    setup.logger.info(f"Completed: {step_name}")
+                
+                # If we got through all steps without failure, turn on green LED
+                if not setup._failed:
+                    setup.gpio_mgr.green_led_on()
+                    setup.gpio_mgr.red_led_off()
+                    setup.logger.info("Setup completed successfully")
+                    setup.lcd.clear()
+                    setup.lcd.write("Setup Complete", 0)
+                    setup.lcd.write("System Ready", 1)
+                    
+            except KeyboardInterrupt:
+                setup.logger.info("Setup interrupted by user")
+                setup._failed = True
+                # Blink red LED on interruption
+                setup.gpio_mgr.blink_red_led(times=3, interval=0.5)
+                setup.gpio_mgr.red_led_on()  # Keep red LED on
                 setup.lcd.clear()
-                setup.lcd.write("Setup Failed", 0)
-                setup.lcd.write(f"At: {step_name[:16]}", 1)
-                time.sleep(5)  # Show error for 5 seconds
-                sys.exit(1)
-            setup.logger.info(f"Completed: {step_name}")
-            
-        setup.logger.info("Setup completed successfully")
-        
-    except KeyboardInterrupt:
-        setup.logger.info("Setup interrupted by user")
-        setup.lcd.clear()
-        setup.lcd.write("Setup Interrupted", 0)
-        setup.lcd.write("By User", 1)
-    except Exception as e:
-        setup.logger.error(f"Unexpected error: {e}")
-        setup.lcd.clear()
-        setup.lcd.write("Error:", 0)
-        setup.lcd.write(f"{str(e)[:16]}", 1)
+                setup.lcd.write("Setup Interrupted", 0)
+                setup.lcd.write("By User", 1)
+                
+                # Ask user to retry after interruption
+                if setup.use_button:
+                    time.sleep(3)
+                    setup.lcd.clear()
+                    setup.lcd.write("Press button", 0)
+                    setup.lcd.write("to retry", 1)
+                    setup.gpio_mgr.wait_for_button_press()
+                    retry = True
+                
+            except Exception as e:
+                setup.logger.error(f"Unexpected error: {e}")
+                setup._failed = True
+                # Blink red LED on unexpected errors
+                setup.gpio_mgr.blink_red_led(times=10, interval=0.1)
+                setup.gpio_mgr.red_led_on()  # Keep red LED on
+                setup.lcd.clear()
+                setup.lcd.write("Error:", 0)
+                setup.lcd.write(f"{str(e)[:16]}", 1)
+                
+                # Ask user to retry after unexpected error
+                if setup.use_button:
+                    time.sleep(3)
+                    setup.lcd.clear()
+                    setup.lcd.write("Press button", 0)
+                    setup.lcd.write("to retry", 1)
+                    setup.gpio_mgr.wait_for_button_press()
+                    retry = True
+                else:
+                    # Exit if we can't retry
+                    sys.exit(1)
+    
     finally:
-        setup.cleanup()
+        # Only perform cleanup if we're completely exiting the program
+        # This modified cleanup doesn't change the LCD message or LED states
+        if hasattr(setup, 'uart') and setup.uart and setup.uart.is_open:
+            setup.uart.close()
+            setup.logger.info("UART connection closed")
+        
+        # Make sure crystal is powered off on exit
+        if hasattr(setup, 'gpio_mgr'):
+            setup.gpio_mgr.power_off_crystal()
+
 
 if __name__ == "__main__":
     main()
