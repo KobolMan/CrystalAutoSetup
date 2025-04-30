@@ -418,19 +418,19 @@ class BoardSetup:
             return False
 
     def transfer_files(self):
-        """Transfer both image and bmap files using SCP"""
+        """Transfer both image and bmap files using SCP with LCD progress display"""
         self.logger.info("Starting file transfer to Crystal board...")
         self.lcd.clear()
         self.lcd.write("Transferring", 0)
         self.lcd.write("Image Files...", 1)
-        
+
         # Check if files exist and get their sizes
         files_to_transfer = {
             'Image file': self.image_file,
             'BMAP file': self.bmap_file,
             'SSH key': self.key_file
         }
-        
+
         file_sizes = {}
         for file_desc, filepath in files_to_transfer.items():
             if not os.path.exists(filepath):
@@ -441,55 +441,117 @@ class BoardSetup:
                 size_mb = size_bytes / (1024 * 1024)
                 file_sizes[filepath] = size_mb
                 self.logger.info(f"{file_desc} size: {size_mb:.2f} MB")
-            
+
         self.logger.info(f"Using base directory: {self.base_dir}")
-        
+
         # Ensure key file has correct permissions
         os.chmod(self.key_file, 0o600)
-        
+
         # Transfer each file
         files_to_send = [self.bmap_file, self.image_file]
         total_transferred = 0
-        start_time = time.time()
-        
+        overall_start_time = time.time()
+
         for filepath in files_to_send:
             filename = os.path.basename(filepath)
             file_size = file_sizes[filepath]
-            
-            self.logger.info(f"\nStarting transfer of {filename} ({file_size:.2f} MB)...")
-            
+
+            # Define transfer_start here, outside any if/else blocks
             transfer_start = time.time()
-            scp_command = (
-                f"scp -O -v -i {self.key_file} -o StrictHostKeyChecking=no "
-                f"{filepath} {self.remote_user}@{self.crystal_ip}:{self.remote_path}"
-            )
-            
-            success, output = self.run_command(scp_command)
+
+            # Small files don't need progress tracking
+            if file_size < 1:  # Less than 1MB
+                self.lcd.clear()
+                self.lcd.write(f"Sending {filename}", 0)
+                self.lcd.write("Small file...", 1)
+
+                self.logger.info(f"\nStarting transfer of {filename} ({file_size:.2f} MB)...")
+
+                scp_command = f"scp -O -v -i {self.key_file} -o StrictHostKeyChecking=no {filepath} {self.remote_user}@{self.crystal_ip}:{self.remote_path}"
+                success, output = self.run_command(scp_command)
+
+                if not success:
+                    self.logger.error(f"Failed to transfer {filename}: {output}")
+                    return False
+            else:
+                # For large files, use time-based progress estimation
+                self.lcd.clear()
+                self.lcd.write(f"Sending {int(file_size)}MB", 0)
+                self.lcd.write("Progress: 0%", 1)
+
+                self.logger.info(f"\nStarting transfer of {filename} ({file_size:.2f} MB)...")
+
+                # Based on your actual observed transfer rate (approx 1.1 MB/s)
+                # Add a 10% buffer to make sure we don't overestimate
+                transfer_rate = 1.0  # MB/s
+                expected_seconds = file_size / transfer_rate
+
+                # Create SCP command
+                scp_command = f"scp -O -v -i {self.key_file} -o StrictHostKeyChecking=no {filepath} {self.remote_user}@{self.crystal_ip}:{self.remote_path}"
+
+                # Start the transfer process
+                process = subprocess.Popen(
+                    scp_command,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+
+                # We don't redefine transfer_start here anymore
+                last_percentage = 0
+
+                # Simple progress loop that updates every 3 seconds
+                while process.poll() is None:
+                    current_time = time.time()
+                    elapsed = current_time - transfer_start
+
+                    # Calculate percentage based on elapsed time and expected duration
+                    # Cap at 95% until complete
+                    percentage = min(95, int((elapsed / expected_seconds) * 100))
+
+                    # Update LCD if percentage has changed
+                    if percentage > last_percentage:
+                        self.lcd.write(f"Progress: {percentage}%", 1)
+                        self.logger.info(f"Transfer progress: {percentage}%")
+                        last_percentage = percentage
+
+                    time.sleep(3)  # Check every 3 seconds
+
+                # Check if process completed successfully
+                returncode = process.poll()
+                if returncode != 0:
+                    stdout, stderr = process.communicate()
+                    self.logger.error(f"Failed to transfer {filename}: {stderr.decode() if stderr else 'Unknown error'}")
+                    return False
+
+                # Show 100% when complete
+                self.lcd.write("Progress: 100%", 1)
+                self.logger.info("Transfer progress: 100%")
+
             transfer_end = time.time()
-            
-            if not success:
-                self.logger.error(f"Failed to transfer {filename}: {output}")
-                return False
-            
-            # Calculate transfer statistics
             transfer_time = transfer_end - transfer_start
             transfer_speed = file_size / transfer_time if transfer_time > 0 else 0
-            
+
             self.logger.info(f"Successfully transferred {filename}")
             self.logger.info(f"Transfer time: {transfer_time:.2f} seconds")
             self.logger.info(f"Transfer speed: {transfer_speed:.2f} MB/s")
-            
+
             total_transferred += file_size
-            
+
         # Final statistics
-        total_time = time.time() - start_time
+        total_time = time.time() - overall_start_time
         avg_speed = total_transferred / total_time if total_time > 0 else 0
-        
+
         self.logger.info("\nTransfer Summary:")
         self.logger.info(f"Total data transferred: {total_transferred:.2f} MB")
         self.logger.info(f"Total time: {total_time:.2f} seconds")
         self.logger.info(f"Average transfer speed: {avg_speed:.2f} MB/s")
-        
+
+        self.lcd.clear()
+        self.lcd.write("File Transfer", 0)
+        self.lcd.write("Complete!", 1)
+        time.sleep(1)
+
         self.logger.info("All files transferred successfully")
         return True
 
@@ -935,6 +997,7 @@ def main():
         while retry:
             retry = False  # Will be set to True if we need to retry
             setup._failed = False  # Reset failure flag on each attempt
+            setup.gpio_mgr.red_led_off()
             
             try:
                 # Power on Crystal board
